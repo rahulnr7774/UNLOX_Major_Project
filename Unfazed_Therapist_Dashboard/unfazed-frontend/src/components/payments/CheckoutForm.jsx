@@ -1,0 +1,1 @@
+export default function CheckoutForm() { return <form className="space-y-3"><input className="w-full rounded-xl border border-ink/10 p-3" placeholder="Card number" /><button className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white">Pay securely</button></form> }

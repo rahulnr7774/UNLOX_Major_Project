@@ -1,0 +1,1 @@
+export default function Notes() { return <section><h1 className="font-display text-3xl font-semibold">Notes</h1><p className="mt-2 text-ink/60">Session notes will appear here.</p></section> }

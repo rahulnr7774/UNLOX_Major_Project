@@ -1,0 +1,4 @@
+export default function RevenueChart() {
+  const bars = [42, 58, 45, 72, 61, 82, 67, 92, 77, 64, 86, 74]
+  return <div><div className="flex h-48 items-end gap-2 border-b border-ink/10 sm:gap-4">{bars.map((height, index) => <div key={index} className="group flex h-full flex-1 items-end"><div style={{ height: `${height}%` }} className={`w-full rounded-t-lg transition group-hover:bg-coral ${index === 7 ? 'bg-coral' : 'bg-sage'}`} /></div>)}</div><div className="mt-4 flex justify-between text-[11px] font-semibold uppercase tracking-wider text-ink/35"><span>May</span><span>Jun</span><span>Jul</span><span>Aug</span><span>Sep</span><span>Oct</span></div></div>
+}

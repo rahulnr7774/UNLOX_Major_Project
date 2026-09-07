@@ -1,0 +1,1 @@
+export default function Analytics() { return <section><h1 className="font-display text-3xl font-semibold">Analytics</h1><p className="mt-2 text-ink/60">Practice insights will appear here.</p></section> }

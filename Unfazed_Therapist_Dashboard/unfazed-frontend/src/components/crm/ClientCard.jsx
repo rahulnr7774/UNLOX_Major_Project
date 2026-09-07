@@ -1,0 +1,3 @@
+export default function ClientCard({ client }) {
+  return <div className="flex items-center gap-3 rounded-2xl p-3 transition hover:bg-white/70"><div className={`flex h-10 w-10 items-center justify-center rounded-full text-sm font-bold ${client.color}`}>{client.initials}</div><div className="flex-1"><p className="text-sm font-semibold">{client.name}</p><p className="mt-0.5 text-xs text-ink/50">{client.note}</p></div><span className="text-xs font-bold text-moss">{client.status}</span></div>
+}

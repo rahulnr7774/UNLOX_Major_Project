@@ -1,0 +1,1 @@
+export default function Modal({ open, children }) { return open ? <div className="fixed inset-0 z-50 grid place-items-center bg-ink/30 p-5"><div className="w-full max-w-lg rounded-3xl bg-white p-6">{children}</div></div> : null }

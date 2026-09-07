@@ -1,0 +1,1 @@
+export default function MessageBubble({ children, own = false }) { return <p className={`max-w-xs rounded-2xl px-4 py-3 text-sm ${own ? 'ml-auto bg-moss text-white' : 'bg-white'}`}>{children}</p> }

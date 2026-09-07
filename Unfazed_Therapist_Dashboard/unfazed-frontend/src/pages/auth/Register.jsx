@@ -1,0 +1,38 @@
+import { useState } from 'react'
+import { ArrowRight, HeartHandshake } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
+import axiosInstance from '../../api/axiosInstance'
+import { useAuth } from '../../context/AuthContext'
+
+export default function Register() {
+	const [role, setRole] = useState('therapist')
+	const [form, setForm] = useState({ name: '', email: '', password: '', phone: '', presenting_concern: '' })
+	const [state, setState] = useState({ loading: false, message: '', error: '' })
+	const { login } = useAuth()
+	const navigate = useNavigate()
+	const update = (key) => (event) => setForm({ ...form, [key]: event.target.value })
+	const fields = role === 'therapist' ? [['name', 'Full name', 'text'], ['email', 'Email address', 'email'], ['password', 'Password (8+ characters)', 'password']] : [['name', 'Full name', 'text'], ['email', 'Email address', 'email'], ['phone', 'Phone number', 'tel'], ['presenting_concern', 'What brings you here?', 'text']]
+
+	async function submit(event) {
+		event.preventDefault()
+		setState({ loading: true, error: '', message: '' })
+		try {
+			if (role === 'client') {
+				await axiosInstance.post('/leads', { name: form.name, email: form.email, phone: form.phone, presenting_concern: form.presenting_concern })
+				return setState({ loading: false, error: '', message: 'Your request was sent. Your therapist will email you when access is approved.' })
+			}
+			const { data } = await axiosInstance.post('/auth/register', { name: form.name, email: form.email, password: form.password })
+			localStorage.setItem('unfazed_token', data.token)
+			const account = data.client ? { ...data.client, role: 'client' } : { ...data.therapist, role: 'therapist' }
+			login(account)
+			navigate(account.role === 'client' ? '/client-portal' : '/dashboard', { replace: true })
+		} catch (requestError) {
+			setState({ loading: false, error: requestError.response?.data?.message || 'Unable to create your account.', message: '' })
+		}
+	}
+
+	return <main className="min-h-screen bg-cream px-5 py-8 sm:px-8"><div className="mx-auto grid min-h-[calc(100vh-4rem)] max-w-6xl overflow-hidden rounded-[32px] bg-white shadow-[0_24px_80px_rgba(31,41,36,.08)] lg:grid-cols-[.9fr_1.1fr]"><div className="soft-grid hidden bg-sage p-10 lg:flex lg:flex-col lg:justify-between"><div className="flex items-center gap-3"><Logo /><span className="font-display text-xl font-semibold">unfazed</span></div><div><div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-white text-moss"><HeartHandshake /></div><h2 className="max-w-sm font-display text-4xl font-semibold leading-tight">Build a practice that leaves room to breathe.</h2></div><p className="text-xs font-semibold uppercase tracking-[.16em] text-moss">Private by design · Built for care</p></div><div className="p-6 sm:p-12 lg:p-16"><div className="mb-10 flex items-center gap-3 lg:hidden"><Logo /><span className="font-display text-xl font-semibold">unfazed</span></div><div className="mx-auto max-w-md"><p className="mb-3 text-sm font-semibold uppercase tracking-[.16em] text-moss">{role === 'therapist' ? 'Therapist workspace' : 'Client portal'}</p><h1 className="font-display text-4xl font-semibold tracking-[-.04em]">Create your space</h1><p className="mt-3 text-sm leading-6 text-ink/55">{role === 'therapist' ? 'Set up a calmer home for your practice.' : 'Your care journey starts with a conversation.'}</p><div className="my-8 grid grid-cols-2 rounded-xl bg-cream p-1"><RoleButton active={role === 'therapist'} onClick={() => setRole('therapist')}>Therapist</RoleButton><RoleButton active={role === 'client'} onClick={() => setRole('client')}>Client</RoleButton></div><form onSubmit={submit} className="space-y-4">{fields.map(([key, label, type]) => <label key={key} className="block"><span className="mb-2 block text-sm font-semibold">{label}</span><input required={key !== 'presenting_concern'} type={type} value={form[key]} onChange={update(key)} minLength={key === 'password' ? 8 : undefined} className="h-12 w-full rounded-xl border border-ink/10 bg-cream px-4 text-sm outline-none focus:border-moss" /></label>)}{state.error && <p className="rounded-xl bg-[#fae2d9] px-4 py-3 text-sm font-medium text-[#9a4932]">{state.error}</p>}{state.message && <p className="rounded-xl bg-sage px-4 py-3 text-sm font-medium text-moss">{state.message}</p>}<button disabled={state.loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-ink text-sm font-bold text-white hover:bg-moss disabled:opacity-60">{state.loading ? 'Creating...' : role === 'therapist' ? 'Create therapist account' : 'Request client access'} <ArrowRight size={17} /></button></form></div></div></div></main>
+}
+
+function Logo() { return <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-moss font-display text-lg font-bold text-white">u</span> }
+function RoleButton({ active, onClick, children }) { return <button type="button" onClick={onClick} className={`rounded-lg py-2.5 text-sm font-bold ${active ? 'bg-white text-ink shadow-sm' : 'text-ink/45'}`}>{children}</button> }

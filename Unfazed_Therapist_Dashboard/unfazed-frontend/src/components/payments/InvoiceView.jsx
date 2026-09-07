@@ -1,0 +1,1 @@
+export default function InvoiceView({ amount = '$0.00' }) { return <div className="flex justify-between rounded-2xl bg-white p-5"><span>Invoice total</span><strong>{amount}</strong></div> }

@@ -1,0 +1,1 @@
+export default function SlotPicker({ slots = [] }) { return <div className="grid grid-cols-2 gap-2">{slots.map((slot) => <button key={slot} className="rounded-xl border border-ink/10 p-3 text-sm">{slot}</button>)}</div> }

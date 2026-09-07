@@ -1,0 +1,1 @@
+export default function NoteEditor() { return <textarea className="min-h-40 w-full rounded-2xl border border-ink/10 p-4" placeholder="Start writing a session note..." /> }

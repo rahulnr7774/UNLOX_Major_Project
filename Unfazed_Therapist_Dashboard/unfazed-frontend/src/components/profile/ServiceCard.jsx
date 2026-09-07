@@ -1,0 +1,1 @@
+export default function ServiceCard({ title, description }) { return <article className="rounded-2xl bg-white p-5"><h3 className="font-semibold">{title}</h3><p className="mt-2 text-sm text-ink/55">{description}</p></article> }

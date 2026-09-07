@@ -1,0 +1,1 @@
+export default function About({ children }) { return <section className="text-ink/65">{children}</section> }

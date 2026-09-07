@@ -1,0 +1,1 @@
+export default function Calendar() { return <div className="rounded-2xl bg-white p-6">Calendar</div> }

@@ -1,0 +1,1 @@
+export default function ClientTable({ clients = [] }) { return <div className="divide-y divide-ink/10">{clients.map((client) => <div className="py-3" key={client.name}>{client.name}</div>)}</div> }
