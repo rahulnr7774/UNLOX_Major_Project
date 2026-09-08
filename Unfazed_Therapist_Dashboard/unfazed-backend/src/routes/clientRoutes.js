@@ -7,6 +7,7 @@ const router = express.Router();
 router.use(protect);
 router.get('/', asyncHandler(controller.listClients));
 router.post('/', asyncHandler(controller.createClient));
+router.get('/:id/overview', asyncHandler(controller.getClientOverview));
 router.get('/:id', asyncHandler(controller.getClient));
 router.get('/:id/sessions', asyncHandler(controller.getClientSessions));
 router.patch('/:id', asyncHandler(controller.updateClient));

@@ -71,6 +71,17 @@ const clientSchema = new mongoose.Schema(
       timestamp: {
         type: Date
       }
+    },
+
+    consent_history: {
+      type: [
+        {
+          accepted: { type: Boolean, required: true },
+          timestamp: { type: Date, required: true },
+          source: { type: String, default: 'intake' }
+        }
+      ],
+      default: []
     }
   },
   {

@@ -2,7 +2,23 @@ const Availability = require('../models/Availability');
 const Session = require('../models/Session');
 const Client = require('../models/Client');
 const { sendNotification } = require('../services/notificationService');
+const { notifyBookingConfirmed, notifyPostSessionFollowUp } = require('../services/notificationService');
 const { nextSessionCode } = require('../utils/sessionCode');
+
+const allowedDurations = [30, 45, 60, 90];
+
+function dateKeyInTimeZone(value, timeZone) {
+  const parts = new Intl.DateTimeFormat('en-US', {
+    timeZone: timeZone || 'UTC',
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).formatToParts(new Date(value)).reduce((result, part) => {
+    if (part.type !== 'literal') result[part.type] = part.value;
+    return result;
+  }, {});
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
 
 async function getAvailability(req, res) {
   const availability = await Availability.findOne({ therapist_id: req.therapist._id });
@@ -18,6 +34,21 @@ async function saveAvailability(req, res) {
     blocked_slots: req.body.blocked_slots || [],
     timezone: req.body.timezone || 'Asia/Kolkata'
   };
+  const hasTooManySlots = [...payload.weekly_schedule, ...payload.overrides].some((item) => (item.slots || []).length > 6);
+  if (hasTooManySlots) {
+    return res.status(400).json({ message: 'Each day can have a maximum of 6 slots.' });
+  }
+  if (!payload.session_durations.length || payload.session_durations.some((duration) => !allowedDurations.includes(Number(duration)))) {
+    return res.status(400).json({ message: 'Select at least one session duration: 30, 45, 60 or 90 minutes.' });
+  }
+  if (Number(payload.buffer_time) < 0 || Number(payload.buffer_time) > 180) {
+    return res.status(400).json({ message: 'Buffer time must be between 0 and 180 minutes.' });
+  }
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone: payload.timezone }).format();
+  } catch {
+    return res.status(400).json({ message: 'Enter a valid IANA timezone, such as Asia/Kolkata.' });
+  }
   const existing = await Availability.findOne({ therapist_id: req.therapist._id });
 
   if (existing) {
@@ -81,12 +112,28 @@ async function createSession(req, res) {
 
   const session = await Session.create({ ...req.body, session_code: await nextSessionCode(), therapist_id: req.therapist._id });
   if (client.email) await sendNotification({ channel: 'email', recipient: client.email, subject: 'Session scheduled', message: `Your session is scheduled for ${new Date(starts_at).toISOString()}.` });
+  if (session.status === 'confirmed') notifyBookingConfirmed(session._id).catch((error) => console.error('[notification] booking confirmation failed:', error.message));
   return res.status(201).json({ session });
 }
 
 async function updateSession(req, res) {
+  const previous = await Session.findOne({ _id: req.params.id, therapist_id: req.therapist._id });
   const session = await Session.findOneAndUpdate({ _id: req.params.id, therapist_id: req.therapist._id }, req.body, { new: true, runValidators: true }).populate('client_id', 'name email');
   if (!session) return res.status(404).json({ message: 'Session not found' });
+  if (previous?.status !== 'confirmed' && session.status === 'confirmed') notifyBookingConfirmed(session._id).catch((error) => console.error('[notification] booking confirmation failed:', error.message));
+  if (previous?.status !== 'completed' && session.status === 'completed') notifyPostSessionFollowUp(session._id).catch((error) => console.error('[notification] follow-up failed:', error.message));
+  if (previous?.status !== 'cancelled' && session.status === 'cancelled') {
+    const availability = await Availability.findOne({ therapist_id: req.therapist._id });
+    const duration = Math.round((new Date(session.ends_at) - new Date(session.starts_at)) / 60000);
+    const next = availability?.waitlist?.find((entry) => entry.status === 'waiting' && entry.date === dateKeyInTimeZone(session.starts_at, availability.timezone) && entry.duration === duration);
+    if (next) {
+      next.status = 'notified';
+      next.notified_at = new Date();
+      await availability.save();
+      const client = await Client.findById(next.client_id).select('name email');
+      if (client?.email) await sendNotification({ channel: 'email', recipient: client.email, subject: 'A session slot is available', message: `A ${duration}-minute session slot may be available on ${next.date}. Please return to Unfazed to book it.` });
+    }
+  }
   return res.status(200).json({ session });
 }
 
@@ -97,6 +144,7 @@ async function startSession(req, res) {
     { new: true }
   ).populate('client_id', 'name email');
   if (!session) return res.status(404).json({ message: 'Session not found or cannot be started' });
+  notifyBookingConfirmed(session._id).catch((error) => console.error('[notification] booking confirmation failed:', error.message));
   req.app.get('io')?.to(`session-wait:${session._id}`).emit('session:started', { sessionId: String(session._id), endsAt: session.ends_at });
   return res.status(200).json({ session });
 }
@@ -108,6 +156,7 @@ async function endSession(req, res) {
     { new: true }
   ).populate('client_id', 'name email');
   if (!session) return res.status(404).json({ message: 'Session not found or already ended' });
+  notifyPostSessionFollowUp(session._id).catch((error) => console.error('[notification] follow-up failed:', error.message));
   req.app.get('io')?.to(`conversation:${session._id}`).emit('session:ended', { sessionId: String(session._id) });
   req.app.get('io')?.to(`session-wait:${session._id}`).emit('session:ended', { sessionId: String(session._id) });
   return res.status(200).json({ session });

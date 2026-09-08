@@ -10,7 +10,7 @@ function escapeHtml(value = '') {
 	})[character]);
 }
 
-async function sendEmail({ to, subject, text, html }) {
+async function sendEmail({ to, subject, text, html, attachments = [] }) {
 	if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
 		console.error('[email] missing EMAIL_USER or EMAIL_PASSWORD');
 		throw new Error('EMAIL_USER and EMAIL_PASSWORD must be configured');
@@ -24,7 +24,8 @@ async function sendEmail({ to, subject, text, html }) {
 			to,
 			subject,
 			text,
-			html
+			html,
+			attachments
 		});
 		console.log(`[email] sent to ${to}; messageId=${result.messageId}`);
 		return result;

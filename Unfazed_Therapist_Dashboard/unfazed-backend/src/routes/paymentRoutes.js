@@ -4,6 +4,7 @@ const { protect } = require('../middleware/authMiddleware');
 const controller = require('../controllers/paymentController');
 
 const router = express.Router();
+router.post('/webhook', asyncHandler(controller.webhook));
 router.use(protect);
 router.get('/', asyncHandler(controller.listPayments));
 router.post('/orders', asyncHandler(controller.createOrder));

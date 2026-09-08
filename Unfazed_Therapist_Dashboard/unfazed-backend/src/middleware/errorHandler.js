@@ -3,9 +3,12 @@ function notFound(req, res) {
 }
 
 function errorHandler(error, req, res, next) {
-  const statusCode = error.statusCode || (error.name === 'ValidationError' ? 400 : 500);
+  const statusCode = error.statusCode || (error.code === 11000 ? 409 : error.name === 'ValidationError' ? 400 : 500);
   if (statusCode >= 500) console.error(error);
-  res.status(statusCode).json({ message: error.message || 'Internal server error' });
+  const message = error.code === 11000
+    ? 'That therapist profile slug is already in use. Please try another name.'
+    : error.message || 'Internal server error';
+  res.status(statusCode).json({ message });
 }
 
 module.exports = { notFound, errorHandler };

@@ -2,6 +2,11 @@ const SessionNote = require('../models/SessionNote');
 const Client = require('../models/Client');
 const Session = require('../models/Session');
 const { sendNotification } = require('../services/notificationService');
+const { canAccess } = require('../services/entitlementService');
+
+async function canUseTemplate(therapistId, format) {
+  return format === 'freeform' || await canAccess(therapistId, 'note_templates');
+}
 
 async function listNotes(req, res) {
   const filter = { therapist_id: req.therapist._id };
@@ -14,6 +19,7 @@ async function listNotes(req, res) {
 async function createNote(req, res) {
   const { client_id, session_id, content, type, format } = req.body;
   if (!client_id || !session_id || !content || !type) return res.status(400).json({ message: 'client_id, session_id, content and type are required' });
+  if (!await canUseTemplate(req.therapist._id, format || 'freeform')) return res.status(403).json({ message: 'Structured note templates are not included in your subscription.', featureKey: 'note_templates', upgradeRequired: true });
   const [client, session] = await Promise.all([
     Client.exists({ _id: client_id, therapist_id: req.therapist._id }),
     Session.exists({ _id: session_id, client_id, therapist_id: req.therapist._id })
@@ -31,6 +37,7 @@ async function createNote(req, res) {
 async function updateNote(req, res) {
   const allowedFields = ['content', 'type', 'format'];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowedFields.includes(key)));
+  if (updates.format && !await canUseTemplate(req.therapist._id, updates.format)) return res.status(403).json({ message: 'Structured note templates are not included in your subscription.', featureKey: 'note_templates', upgradeRequired: true });
   const note = await SessionNote.findOneAndUpdate({ _id: req.params.id, therapist_id: req.therapist._id }, updates, { new: true, runValidators: true });
   if (!note) return res.status(404).json({ message: 'Note not found' });
   return res.status(200).json({ note });

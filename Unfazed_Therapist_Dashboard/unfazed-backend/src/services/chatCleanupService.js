@@ -1,4 +1,5 @@
 const ChatMessage = require('../models/ChatMessage');
+const { processNotificationJobs } = require('./notificationService');
 
 async function removeExpiredChatMessages() {
   const result = await ChatMessage.deleteMany({ expires_at: { $lte: new Date() } });
@@ -11,6 +12,11 @@ function startChatCleanupJob() {
   }, 60 * 60 * 1000);
   interval.unref?.();
   removeExpiredChatMessages().catch((error) => console.error('Initial chat cleanup failed:', error.message));
+  processNotificationJobs().catch((error) => console.error('Initial notification job failed:', error.message));
+  const notificationInterval = setInterval(() => {
+    processNotificationJobs().catch((error) => console.error('Notification job failed:', error.message));
+  }, 10 * 60 * 1000);
+  notificationInterval.unref?.();
   return interval;
 }
 

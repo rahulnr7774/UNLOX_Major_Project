@@ -7,6 +7,8 @@ const Package = require('../models/Package');
 const ClientPackage = require('../models/ClientPackage');
 const razorpay = require('../config/razorpay');
 const { nextSessionCode } = require('../utils/sessionCode');
+const { generateAndEmailInvoice } = require('../services/invoiceService');
+const { notifyBookingConfirmed } = require('../services/notificationService');
 
 const allowedDurations = [30, 45, 60, 90];
 
@@ -14,8 +16,53 @@ function dateKey(value) {
   return new Date(value).toISOString().slice(0, 10);
 }
 
-function atUtc(date, time) {
-  return new Date(`${date}T${time}:00.000Z`);
+function safeTimeZone(timeZone) {
+  try {
+    new Intl.DateTimeFormat('en-US', { timeZone }).format();
+    return timeZone;
+  } catch {
+    return 'UTC';
+  }
+}
+
+function dateParts(value, timeZone) {
+  return new Intl.DateTimeFormat('en-US', {
+    timeZone: safeTimeZone(timeZone),
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+    hourCycle: 'h23'
+  }).formatToParts(new Date(value)).reduce((result, part) => {
+    if (part.type !== 'literal') result[part.type] = part.value;
+    return result;
+  }, {});
+}
+
+function dateKeyInTimeZone(value, timeZone) {
+  const parts = dateParts(value, timeZone);
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function atTimeZone(date, time, timeZone) {
+  const [year, month, day] = date.split('-').map(Number);
+  const [hour, minute] = time.split(':').map(Number);
+  const desired = Date.UTC(year, month - 1, day, hour, minute);
+  let result = desired;
+  for (let attempt = 0; attempt < 3; attempt += 1) {
+    const actual = dateParts(result, timeZone);
+    const actualUtc = Date.UTC(Number(actual.year), Number(actual.month) - 1, Number(actual.day), Number(actual.hour), Number(actual.minute), Number(actual.second));
+    result += desired - actualUtc;
+  }
+  return new Date(result);
+}
+
+function weekdayInTimeZone(date, timeZone) {
+  const value = atTimeZone(date, '12:00', timeZone);
+  const name = new Intl.DateTimeFormat('en-US', { timeZone: safeTimeZone(timeZone), weekday: 'short' }).format(value);
+  return ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].indexOf(name);
 }
 
 function overlapsBlocked(availability, start, end) {
@@ -23,31 +70,41 @@ function overlapsBlocked(availability, start, end) {
 }
 
 function slotsForDate(availability, date, duration) {
-  const day = new Date(`${date}T00:00:00.000Z`).getUTCDay();
-  const override = (availability.overrides || []).find((item) => dateKey(item.date) === date);
+  const timeZone = safeTimeZone(availability.timezone || 'UTC');
+  const day = weekdayInTimeZone(date, timeZone);
+  const override = (availability.overrides || []).find((item) => dateKeyInTimeZone(item.date, timeZone) === date);
   const ranges = override
     ? (override.available ? override.slots : [])
     : ((availability.weekly_schedule || []).find((item) => item.day === day && item.enabled)?.slots || []);
   const slots = [];
   const step = Number(duration) + Number(availability.buffer_time || 0);
+  const configuredDurations = availability.session_durations?.length ? availability.session_durations : allowedDurations;
+  if (!configuredDurations.includes(Number(duration)) || step <= 0) return slots;
 
   for (const range of ranges) {
-    let start = atUtc(date, range.start);
-    const rangeEnd = atUtc(date, range.end);
+    let start = atTimeZone(date, range.start, timeZone);
+    const rangeEnd = atTimeZone(date, range.end, timeZone);
     while (start < rangeEnd) {
       const end = new Date(start.getTime() + Number(duration) * 60000);
       if (end > rangeEnd) break;
       if (start > new Date() && !overlapsBlocked(availability, start, end)) {
         slots.push({
           start: start.toISOString(),
-          end: end.toISOString(),
-          displayTime: start.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit', timeZone: 'UTC' })
+          end: end.toISOString()
         });
       }
       start = new Date(start.getTime() + step * 60000);
     }
   }
   return slots;
+}
+
+function displaySlot(slot, timeZone) {
+  return {
+    ...slot,
+    displayTime: new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit', timeZone: safeTimeZone(timeZone) }).format(new Date(slot.start)),
+    clientDate: dateKeyInTimeZone(slot.start, timeZone)
+  };
 }
 
 async function listTherapists(req, res) {
@@ -62,22 +119,46 @@ async function listTherapists(req, res) {
 async function listAvailability(req, res) {
   const duration = Number(req.query.duration || 60);
   const date = req.query.date;
+  const clientTimeZone = safeTimeZone(req.query.timezone || 'UTC');
   if (!date || !allowedDurations.includes(duration)) return res.status(400).json({ message: 'A valid date and duration are required' });
 
   const therapist = await Therapist.findById(req.params.therapistId).select('name session_rate specializations');
   if (!therapist) return res.status(404).json({ message: 'Therapist not found' });
   const availability = await Availability.findOne({ therapist_id: therapist._id });
   const dayStart = new Date(`${date}T00:00:00.000Z`);
+  dayStart.setUTCDate(dayStart.getUTCDate() - 2);
   const dayEnd = new Date(`${date}T23:59:59.999Z`);
+  dayEnd.setUTCDate(dayEnd.getUTCDate() + 2);
   const bookedSessions = await Session.find({
     therapist_id: therapist._id,
     status: { $in: ['scheduled', 'confirmed'] },
     starts_at: { $lt: dayEnd },
     ends_at: { $gt: dayStart }
   }).select('starts_at ends_at').lean();
-  const slots = availability ? slotsForDate(availability, date, duration).filter((slot) => !bookedSessions.some((session) => new Date(slot.start) < new Date(session.ends_at) && new Date(slot.end) > new Date(session.starts_at))) : [];
+  const candidateDates = [-1, 0, 1].map((offset) => {
+    const value = new Date(`${date}T12:00:00.000Z`);
+    value.setUTCDate(value.getUTCDate() + offset);
+    return value.toISOString().slice(0, 10);
+  });
+  const slots = availability ? candidateDates.flatMap((candidateDate) => slotsForDate(availability, candidateDate, duration))
+    .filter((slot) => !bookedSessions.some((session) => new Date(slot.start) < new Date(session.ends_at) && new Date(slot.end) > new Date(session.starts_at)))
+    .map((slot) => displaySlot(slot, clientTimeZone))
+    .filter((slot) => slot.clientDate === date) : [];
   res.set('Cache-Control', 'no-store');
-  return res.status(200).json({ therapist, date, duration, slots });
+  return res.status(200).json({ therapist, date, duration, slots, clientTimeZone, therapistTimeZone: availability?.timezone || 'UTC' });
+}
+
+async function joinWaitlist(req, res) {
+  const { therapist_id: therapistId, date, duration } = req.body;
+  const durationNumber = Number(duration);
+  if (!therapistId || !/^\d{4}-\d{2}-\d{2}$/.test(date || '') || !allowedDurations.includes(durationNumber)) return res.status(400).json({ message: 'A valid therapist, date and duration are required' });
+  const availability = await Availability.findOne({ therapist_id: therapistId });
+  if (!availability) return res.status(404).json({ message: 'Availability not found' });
+  const alreadyWaiting = availability.waitlist?.some((entry) => String(entry.client_id) === String(req.client._id) && entry.date === date && entry.duration === durationNumber && entry.status === 'waiting');
+  if (alreadyWaiting) return res.status(200).json({ message: 'You are already on this waitlist.' });
+  availability.waitlist.push({ client_id: req.client._id, date, duration: durationNumber });
+  await availability.save();
+  return res.status(201).json({ message: 'You joined the waitlist.' });
 }
 
 async function listPackages(req, res) {
@@ -105,7 +186,7 @@ async function createOrder(req, res) {
   const availability = await Availability.findOne({ therapist_id: therapist._id });
   const requestedStart = new Date(startsAt).toISOString();
   const requestedEnd = new Date(endsAt).toISOString();
-  const validSlot = availability && slotsForDate(availability, dateKey(startsAt), durationNumber).some((slot) => slot.start === requestedStart && slot.end === requestedEnd);
+  const validSlot = availability && slotsForDate(availability, dateKeyInTimeZone(startsAt, availability.timezone), durationNumber).some((slot) => slot.start === requestedStart && slot.end === requestedEnd);
   if (!validSlot) return res.status(409).json({ message: 'That slot is no longer available' });
   if (await Session.exists({ therapist_id: therapist._id, status: { $in: ['scheduled', 'confirmed'] }, starts_at: { $lt: new Date(endsAt) }, ends_at: { $gt: new Date(startsAt) } })) return res.status(409).json({ message: 'That slot was just booked' });
 
@@ -144,16 +225,19 @@ async function verifyPayment(req, res) {
       payment.payment_method = paymentMethod;
       payment.paid_at = new Date();
       await payment.save();
+      generateAndEmailInvoice(payment._id).catch((error) => console.error('[invoice] failed:', error.message));
       return res.status(200).json({ payment, clientPackage });
     }
     const conflict = await Session.exists({ therapist_id: payment.therapist_id, status: { $in: ['scheduled', 'confirmed'] }, starts_at: { $lt: payment.ends_at }, ends_at: { $gt: payment.starts_at } });
     if (conflict) return res.status(409).json({ message: 'That slot was booked while payment was processing' });
     const session = await Session.create({ session_code: await nextSessionCode(), therapist_id: payment.therapist_id, client_id: payment.client_id, starts_at: payment.starts_at, ends_at: payment.ends_at, status: 'confirmed' });
+    notifyBookingConfirmed(session._id).catch((error) => console.error('[notification] booking confirmation failed:', error.message));
     payment.session_id = session._id;
     payment.status = 'paid';
     payment.payment_method = paymentMethod;
     payment.paid_at = new Date();
     await payment.save();
+    generateAndEmailInvoice(payment._id).catch((error) => console.error('[invoice] failed:', error.message));
   }
   return res.status(200).json({ payment, session: await Session.findById(payment.session_id) });
 }
@@ -162,7 +246,7 @@ async function bookWithPackage(req, res) {
   const { package_id: packageId, therapist_id: therapistId, starts_at: startsAt, ends_at: endsAt } = req.body;
   const duration = Math.round((new Date(endsAt) - new Date(startsAt)) / 60000);
   const availability = await Availability.findOne({ therapist_id: therapistId });
-  const validSlot = availability && slotsForDate(availability, dateKey(startsAt), duration).some((slot) => slot.start === new Date(startsAt).toISOString() && slot.end === new Date(endsAt).toISOString());
+  const validSlot = availability && slotsForDate(availability, dateKeyInTimeZone(startsAt, availability.timezone), duration).some((slot) => slot.start === new Date(startsAt).toISOString() && slot.end === new Date(endsAt).toISOString());
   if (!validSlot) return res.status(409).json({ message: 'That slot is no longer available' });
   const clientPackage = await ClientPackage.findOneAndUpdate(
     { _id: packageId, client_id: req.client._id, therapist_id: therapistId, status: 'active', sessions_remaining: { $gt: 0 }, expires_at: { $gte: new Date() } },
@@ -175,6 +259,7 @@ async function bookWithPackage(req, res) {
     return res.status(409).json({ message: 'That slot was just booked' });
   }
   const session = await Session.create({ session_code: await nextSessionCode(), therapist_id: therapistId, client_id: req.client._id, starts_at: startsAt, ends_at: endsAt, status: 'confirmed' });
+  notifyBookingConfirmed(session._id).catch((error) => console.error('[notification] booking confirmation failed:', error.message));
   if (clientPackage.sessions_remaining === 0) await ClientPackage.findByIdAndUpdate(clientPackage._id, { status: 'completed' });
   return res.status(201).json({ session, clientPackage });
 }
@@ -185,4 +270,4 @@ async function getSessionStatus(req, res) {
   return res.status(200).json({ session, started: Boolean(session.started_at) });
 }
 
-module.exports = { listTherapists, listAvailability, listPackages, createPackageOrder, createOrder, verifyPayment, bookWithPackage, getSessionStatus };
+module.exports = { listTherapists, listAvailability, joinWaitlist, listPackages, createPackageOrder, createOrder, verifyPayment, bookWithPackage, getSessionStatus };

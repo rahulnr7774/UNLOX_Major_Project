@@ -90,7 +90,36 @@ const availabilitySchema = new mongoose.Schema(
     timezone: {
       type: String,
       default: "Asia/Kolkata"
-    }
+    },
+
+    waitlist: [
+      {
+        client_id: {
+          type: mongoose.Schema.Types.ObjectId,
+          ref: "Client",
+          required: true
+        },
+        date: {
+          type: String,
+          required: true
+        },
+        duration: {
+          type: Number,
+          enum: [30, 45, 60, 90],
+          required: true
+        },
+        status: {
+          type: String,
+          enum: ["waiting", "notified"],
+          default: "waiting"
+        },
+        notified_at: Date,
+        created_at: {
+          type: Date,
+          default: Date.now
+        }
+      }
+    ]
   },
   {
     timestamps: true

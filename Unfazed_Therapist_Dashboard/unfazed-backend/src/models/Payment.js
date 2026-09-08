@@ -82,6 +82,14 @@ const paymentSchema = new mongoose.Schema(
       type: String
     },
 
+    invoice_number: {
+      type: String
+    },
+
+    invoice_sent_at: {
+      type: Date
+    },
+
     paid_at: {
       type: Date
     }

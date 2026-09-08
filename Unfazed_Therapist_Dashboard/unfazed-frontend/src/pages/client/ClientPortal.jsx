@@ -1,10 +1,37 @@
 import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import {
+  Calendar,
+  Clock,
+  Package,
+  FileText,
+  MessageSquare,
+  CreditCard,
+  BookOpen,
+  Leaf,
+} from "lucide-react";
 import axiosInstance from "../../api/axiosInstance";
 import Modal from "../../components/common/Modal";
 
-function ClientPortal() {
+function sanitizeNoteHtml(content) {
+  const documentNode = new DOMParser().parseFromString(String(content || ''), 'text/html')
+  const allowedTags = new Set(['P', 'H3', 'STRONG', 'EM', 'UL', 'OL', 'LI', 'BR'])
+  documentNode.body.querySelectorAll('*').forEach((element) => {
+    if (!allowedTags.has(element.tagName)) {
+      element.replaceWith(documentNode.createTextNode(element.textContent || ''))
+      return
+    }
+    Array.from(element.attributes).forEach((attribute) => element.removeAttribute(attribute.name))
+  })
+  return documentNode.body.innerHTML
+}
 
+function isMeaningfulSharedNote(note) {
+  const text = String(note.content || '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim()
+  return !['Subjective Objective Assessment Plan', 'Data Assessment Plan'].includes(text)
+}
+
+function ClientPortal() {
   const navigate = useNavigate();
 
   const [client, setClient] = useState(null);
@@ -15,55 +42,25 @@ function ClientPortal() {
   const [packages, setPackages] = useState([]);
   const [packageLoading, setPackageLoading] = useState(false);
   const [selectedSession, setSelectedSession] = useState(null);
-
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-
     const loadPortal = async () => {
-
       try {
-
-        const response = await axiosInstance.get(
-          "/clients/portal"
-        );
-
+        const response = await axiosInstance.get("/clients/portal");
         setClient(response.data.client);
-
-        setUpcomingSession(
-          response.data.upcomingSession
-        );
-
-        setSessions(
-          response.data.sessions
-        );
-
-        setSharedNotes(
-          response.data.sharedNotes
-        );
-
-        setClientPackage(
-          response.data.clientPackage
-        );
-
+        setUpcomingSession(response.data.upcomingSession);
+        setSessions(response.data.sessions);
+        setSharedNotes(response.data.sharedNotes);
+        setClientPackage(response.data.clientPackage);
         setPackages(response.data.packages || []);
-
       } catch (error) {
-
-        console.error(
-          "Failed to load client portal",
-          error
-        );
-
+        console.error("Failed to load client portal", error);
       } finally {
-
         setLoading(false);
-
       }
     };
-
     loadPortal();
-
   }, []);
 
   const purchasePackage = async (packageRecord) => {
@@ -88,7 +85,7 @@ function ClientPortal() {
           });
           window.location.reload();
         },
-        theme: { color: "#486653" }
+        theme: { color: "#10B981" } // Emerald
       });
       checkout.open();
     } catch (error) {
@@ -98,365 +95,318 @@ function ClientPortal() {
     }
   };
 
-
   if (loading) {
-    return <main className="flex min-h-screen items-center justify-center bg-cream text-sm text-ink/60">Loading your portal...</main>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#FAFAF9] text-sm text-[#64748B]">
+        Loading your portal...
+      </div>
+    );
   }
-
 
   if (!client) {
-    return <main className="flex min-h-screen items-center justify-center bg-cream text-sm text-ink/60">Unable to load client information.</main>;
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#FAFAF9] text-sm text-[#64748B]">
+        Unable to load client information.
+      </div>
+    );
   }
 
-
   return (
-
-    <div className="min-h-screen bg-cream text-ink">
-
-      {/* NAVBAR */}
-
-      <header className="border-b border-ink/10 bg-white">
-
-        <div className="mx-auto flex max-w-7xl items-center justify-between px-5 py-5 sm:px-8">
-          <h2 className="font-display text-xl font-semibold">unfazed</h2>
-
-        <div className="flex items-center gap-3">
-
-          <span className="hidden text-sm font-semibold text-ink/60 sm:block">
-            {client.name}
-          </span>
-
-          <button className="rounded-full border border-ink/10 px-4 py-2 text-sm font-semibold hover:border-moss hover:text-moss"
-            onClick={() => navigate("/client/profile")}
-          >
-            Profile
-          </button>
-
-          <button className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-moss"
-            onClick={() => navigate("/logout")}
-          >
-            Logout
-          </button>
-          </div>
-
-        </div>
-
-      </header>
-
-
-      {/* WELCOME */}
-
-      <main className="mx-auto max-w-7xl px-5 py-8 sm:px-8 lg:py-12">
-
-        <h1 className="font-display text-4xl font-semibold tracking-[-.04em] sm:text-5xl">
-          Welcome back, {client.name} 👋
-        </h1>
-
-        <p className="mt-3 max-w-xl text-base leading-7 text-ink/60">
-          Manage your therapy sessions and
-          stay connected with your therapist.
-        </p>
-
-
-        {/* UPCOMING SESSION */}
-
-        <section className="mt-8 grid gap-6 lg:grid-cols-[1.35fr_.65fr]">
-
-          <div className="rounded-[28px] border border-ink/10 bg-white p-6 shadow-[0_20px_60px_rgba(31,41,36,.05)] sm:p-8">
-          <h2 className="font-display text-2xl font-semibold">Upcoming Session</h2>
-
-          {upcomingSession ? (
-
-            <div className="mt-6 rounded-2xl bg-sage/60 p-5">
-
-              <h3>
-                {upcomingSession.therapist.name}
-              </h3>
-
-              <p>
-                Date:{" "}
-                {new Date(
-                  upcomingSession.starts_at
-                ).toLocaleDateString()}
+    <>
+      <main className="min-h-screen overflow-auto">
+        <div className="mx-auto max-w-[1440px] px-5 py-7 sm:px-8 lg:px-12 lg:py-10">
+          {/* Header */}
+          <header className="mb-10 flex flex-col justify-between gap-5 sm:flex-row sm:items-end">
+            <div>
+              <p className="mb-2 text-sm font-semibold uppercase tracking-[.18em] text-emerald-600">
+                Client portal
               </p>
-
-              <p>
-                Time:{" "}
-                {new Date(
-                  upcomingSession.starts_at
-                ).toLocaleTimeString()}
+              <h1 className="font-display text-4xl font-semibold tracking-[-.04em] text-[#1E293B] sm:text-5xl">
+                Welcome back, {client.name} 👋
+              </h1>
+              <p className="mt-3 max-w-lg text-base text-[#64748B]">
+                Manage your therapy sessions and stay connected with your therapist.
               </p>
-
-              <p>
-                Duration:{" "}
-                {upcomingSession.duration} minutes
-              </p>
-
-              <button className="mt-6 rounded-full bg-ink px-5 py-3 text-sm font-semibold text-white hover:bg-moss"
-                onClick={() => setSelectedSession(upcomingSession)}
-              >
-                View Session
-              </button>
-
-              <button>
-                Cancel
-              </button>
-
             </div>
-
-          ) : (
-
-            <div className="mt-6 rounded-2xl border border-dashed border-ink/15 p-6">
-
-              <p>
-                You don't have any upcoming sessions.
-              </p>
-
-              <button className="mt-4 rounded-full bg-moss px-5 py-3 text-sm font-semibold text-white hover:bg-ink"
-                onClick={() =>
-                  navigate("/client/book")
-                }
-              >
-                Book a Session
-              </button>
-
-            </div>
-
-          )}
-          </div>
-          <div className="soft-grid rounded-[28px] border border-moss/10 bg-sage p-6 sm:p-8">
-            <h2 className="font-display text-2xl font-semibold">Quick Actions</h2>
-            <div className="mt-6 space-y-3">
-              <button onClick={() => navigate('/client/book')} className="w-full rounded-2xl bg-white/80 px-4 py-3 text-left text-sm font-semibold hover:bg-white">Book a Session</button>
-              <button onClick={() => navigate('/client/payments')} className="w-full rounded-2xl bg-white/80 px-4 py-3 text-left text-sm font-semibold hover:bg-white">Payments</button>
-              <button onClick={() => navigate('/client/chat')} className="w-full rounded-2xl bg-white/80 px-4 py-3 text-left text-sm font-semibold hover:bg-white">Chat with Therapist</button>
-            </div>
-          </div>
-
-        </section>
-
-        <section className="mt-6 rounded-[28px] border border-ink/10 bg-white p-6 sm:p-8">
-          <p className="text-sm font-semibold uppercase tracking-[.15em] text-ink/45">Flexible care</p>
-          <h2 className="mt-2 font-display text-2xl font-semibold">Packages from your therapist</h2>
-          <div className="mt-5 grid gap-3 md:grid-cols-3">
-            {packages.map((packageRecord) => (
-              <div key={packageRecord._id} className="rounded-2xl border border-ink/10 bg-cream p-5">
-                <h3 className="font-display text-lg font-semibold">{packageRecord.name}</h3>
-                <p className="mt-1 text-sm text-ink/55">{packageRecord.session_count} sessions · {packageRecord.expiry_days} days</p>
-                <p className="mt-4 font-display text-2xl font-semibold">INR {packageRecord.total_price}</p>
-                <button disabled={packageLoading} onClick={() => purchasePackage(packageRecord)} className="mt-4 w-full rounded-full bg-ink px-4 py-2.5 text-sm font-bold text-white hover:bg-moss disabled:opacity-50">Buy package</button>
-              </div>
-            ))}
-          </div>
-          {!packages.length && <p className="mt-4 text-sm text-ink/55">Your therapist has not published packages yet.</p>}
-        </section>
-
-
-        {/* QUICK ACTIONS */}
-
-        <section className="mt-6 grid gap-6 lg:grid-cols-2">
-
-          <h2>Quick Actions</h2>
-
-          <button
-            onClick={() =>
-              navigate("/client/book")
-            }
-          >
-            📅 Book Session
-          </button>
-
-
-          <button
-            onClick={() =>
-              navigate("/client/payments")
-            }
-          >
-            💳 Payments
-          </button>
-
-
-          <button
-            onClick={() =>
-              navigate("/client/chat")
-            }
-          >
-            💬 Chat
-          </button>
-
-        </section>
-
-
-        {/* PACKAGE */}
-
-        <section>
-
-          <div className="rounded-[28px] border border-ink/10 bg-white p-6 sm:p-8">
-          <h2 className="font-display text-2xl font-semibold">My Package</h2>
-
-          {clientPackage ? (
-
-            <div className="mt-6 space-y-3 text-sm text-ink/65">
-
-              <h3>
-                {clientPackage.package.name}
-              </h3>
-
-              <p>
-                Total Sessions:{" "}
-                {clientPackage.total_sessions}
-              </p>
-
-              <p>
-                Sessions Used:{" "}
-                {clientPackage.sessions_used}
-              </p>
-
-              <p>
-                Sessions Remaining:{" "}
-                {clientPackage.sessions_remaining}
-              </p>
-
-              <p>
-                Expires:{" "}
-                {new Date(
-                  clientPackage.expires_at
-                ).toLocaleDateString()}
-              </p>
-
-            </div>
-
-          ) : (
-
-            <div className="mt-6">
-
-              <p>
-                You don't have an active package.
-              </p>
-
+            <div className="flex flex-wrap gap-3">
               <button
-                onClick={() =>
-                  navigate("/client/packages")
-                }
+                onClick={() => navigate('/client/book')}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full bg-emerald-500 px-5 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
               >
-                View Packages
+                <Calendar size={17} /> Book session
               </button>
+              {/* <button
+                onClick={() => navigate('/client/chat')}
+                className="inline-flex h-11 items-center justify-center gap-2 rounded-full border border-[#E2E8F0] bg-white px-5 text-sm font-semibold text-[#1E293B] transition-colors hover:border-emerald-500 hover:text-emerald-600"
+              >
+                <MessageSquare size={17} /> Chat
+              </button> */}
+            </div>
+          </header>
 
+          {/* Stats Cards */}
+          <section className="grid gap-4 sm:grid-cols-3">
+            <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[#64748B]">Upcoming Sessions</p>
+                <Calendar size={20} className="text-emerald-500" />
+              </div>
+              <p className="mt-4 text-3xl font-semibold text-[#1E293B]">
+                {upcomingSession ? 1 : 0}
+              </p>
+              <p className="mt-1 text-xs font-medium text-emerald-600">Next session</p>
+            </div>
+            <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[#64748B]">Total Sessions</p>
+                <Clock size={20} className="text-emerald-500" />
+              </div>
+              <p className="mt-4 text-3xl font-semibold text-[#1E293B]">{sessions.length}</p>
+              <p className="mt-1 text-xs font-medium text-emerald-600">All time</p>
+            </div>
+            <div className="rounded-2xl border border-[#E2E8F0] bg-white p-6 shadow-sm transition-shadow hover:shadow-md">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium text-[#64748B]">Active Package</p>
+                <Package size={20} className="text-emerald-500" />
+              </div>
+              <p className="mt-4 text-3xl font-semibold text-[#1E293B]">
+                {clientPackage ? clientPackage.sessions_remaining : 0}
+              </p>
+              <p className="mt-1 text-xs font-medium text-emerald-600">Remaining sessions</p>
+            </div>
+          </section>
+
+          {/* Upcoming Session + Quick Actions */}
+          <section className="mt-8 grid gap-6 lg:grid-cols-[1.35fr_.65fr]">
+            <div className="rounded-[28px] border border-[#E2E8F0] bg-white p-6 shadow-sm sm:p-8">
+              <div className="flex items-center gap-3">
+                <Calendar size={20} className="text-emerald-500" />
+                <h2 className="font-display text-2xl font-semibold text-[#1E293B]">Upcoming Session</h2>
+              </div>
+              {upcomingSession ? (
+                <div className="mt-6 rounded-2xl bg-emerald-50 p-5">
+                  <h3 className="text-lg font-semibold text-[#1E293B]">
+                    {upcomingSession.therapist.name}
+                  </h3>
+                  <div className="mt-3 space-y-1 text-sm text-[#64748B]">
+                    <p><Calendar size={14} className="inline mr-1" /> Date: {new Date(upcomingSession.starts_at).toLocaleDateString()}</p>
+                    <p><Clock size={14} className="inline mr-1" /> Time: {new Date(upcomingSession.starts_at).toLocaleTimeString()}</p>
+                    <p><Clock size={14} className="inline mr-1" /> Duration: {upcomingSession.duration} minutes</p>
+                  </div>
+                  <div className="mt-4 flex flex-wrap gap-3">
+                    <button
+                      className="rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
+                      onClick={() => setSelectedSession(upcomingSession)}
+                    >
+                      View Session
+                    </button>
+                    <button className="rounded-full border border-[#E2E8F0] px-5 py-2.5 text-sm font-semibold text-[#64748B] hover:border-red-300 hover:text-red-500">
+                      Cancel
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                <div className="mt-6 rounded-2xl border border-dashed border-[#E2E8F0] p-6 text-center">
+                  <p className="text-[#64748B]">You don't have any upcoming sessions.</p>
+                  <button
+                    className="mt-4 rounded-full bg-emerald-500 px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
+                    onClick={() => navigate("/client/book")}
+                  >
+                    Book a Session
+                  </button>
+                </div>
+              )}
             </div>
 
-          )}
-          </div>
-
-        </section>
-
-
-        {/* SHARED NOTES */}
-
-        <section>
-
-          <div className="rounded-[28px] border border-ink/10 bg-[#f0ece5] p-6 sm:p-8">
-          <h2 className="font-display text-2xl font-semibold">Shared Notes</h2>
-
-          {sharedNotes.length > 0 ? (
-
-            sharedNotes.map((note) => (
-
-              <div key={note._id} className="mt-4 border-b border-ink/10 pb-4 last:border-0">
-
-                <h3>
-                  Session Note
-                </h3>
-
-                <p>
-                  {new Date(
-                    note.createdAt
-                  ).toLocaleDateString()}
-                </p>
-
-                <p>
-                  {note.content}
-                </p>
-
-              </div>
-
-            ))
-
-          ) : (
-
-            <p>
-              No shared notes yet.
-            </p>
-
-          )}
-          </div>
-
-        </section>
-
-
-        {/* SESSION HISTORY */}
-
-        <section className="mt-6 rounded-[28px] border border-ink/10 bg-white p-6 sm:p-8">
-
-          <h2 className="font-display text-2xl font-semibold">Recent Sessions</h2>
-
-          {sessions.length > 0 ? (
-
-            sessions.map((session) => (
-
-              <div key={session._id} className="mt-3 flex items-center justify-between rounded-2xl border border-ink/10 p-4">
-
-                <p>
-                  {new Date(
-                    session.starts_at
-                  ).toLocaleDateString()}
-                </p>
-
-                <p>
-                  {session.therapist.name}
-                </p>
-
-                <p>
-                  {session.status}
-                </p>
-
-                <button className="rounded-full bg-ink px-4 py-2 text-sm font-semibold text-white hover:bg-moss" onClick={() => setSelectedSession(session)}>
-                  View
+            {/* Quick Actions */}
+            <div className="rounded-[28px] border border-emerald-200 bg-emerald-50/60 p-6 sm:p-8">
+              <h2 className="font-display text-2xl font-semibold text-[#1E293B]">Quick Actions</h2>
+              <div className="mt-6 space-y-3">
+                <button
+                  onClick={() => navigate('/client/book')}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 text-sm font-semibold text-[#1E293B] transition-colors hover:bg-white"
+                >
+                  <Calendar size={18} className="text-emerald-500" /> Book a Session
                 </button>
-
+                <button
+                  onClick={() => navigate('/client/payments')}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 text-sm font-semibold text-[#1E293B] transition-colors hover:bg-white"
+                >
+                  <CreditCard size={18} className="text-emerald-500" /> Payments
+                </button>
+                <button
+                  onClick={() => navigate('/client/chat')}
+                  className="flex w-full items-center gap-3 rounded-2xl bg-white/80 px-4 py-3 text-sm font-semibold text-[#1E293B] transition-colors hover:bg-white"
+                >
+                  <MessageSquare size={18} className="text-emerald-500" /> Chat with Therapist
+                </button>
               </div>
+            </div>
+          </section>
 
-            ))
+          {/* Packages */}
+          <section className="mt-6 rounded-[28px] border border-[#E2E8F0] bg-white p-6 shadow-sm sm:p-8">
+            <div className="flex items-center gap-3">
+              <Leaf size={20} className="text-emerald-500" />
+              <div>
+                <p className="text-sm font-semibold uppercase tracking-[.15em] text-[#64748B]">Flexible care</p>
+                <h2 className="mt-1 font-display text-2xl font-semibold text-[#1E293B]">Packages from your therapist</h2>
+              </div>
+            </div>
+            <div className="mt-5 grid gap-4 md:grid-cols-3">
+              {packages.map((packageRecord) => (
+                <div key={packageRecord._id} className="rounded-2xl border border-[#E2E8F0] bg-[#FAFAF9] p-5 transition-shadow hover:shadow-md">
+                  <h3 className="font-display text-lg font-semibold text-[#1E293B]">{packageRecord.name}</h3>
+                  <p className="mt-1 text-sm text-[#64748B]">{packageRecord.session_count} sessions · {packageRecord.expiry_days} days</p>
+                  <p className="mt-4 font-display text-2xl font-semibold text-[#1E293B]">INR {packageRecord.total_price}</p>
+                  <button
+                    disabled={packageLoading}
+                    onClick={() => purchasePackage(packageRecord)}
+                    className="mt-4 w-full rounded-full bg-emerald-500 px-4 py-2.5 text-sm font-bold text-white transition-colors hover:bg-emerald-600 disabled:opacity-50"
+                  >
+                    Buy package
+                  </button>
+                </div>
+              ))}
+            </div>
+            {!packages.length && (
+              <p className="mt-4 text-sm text-[#64748B]">Your therapist has not published packages yet.</p>
+            )}
+          </section>
 
-          ) : (
+          {/* My Package */}
+          <section className="mt-6 rounded-[28px] border border-[#E2E8F0] bg-white p-6 shadow-sm sm:p-8">
+            <div className="flex items-center gap-3">
+              <BookOpen size={20} className="text-emerald-500" />
+              <h2 className="font-display text-2xl font-semibold text-[#1E293B]">My Package</h2>
+            </div>
+            {clientPackage ? (
+              <div className="mt-4 grid gap-3 rounded-2xl bg-emerald-50 p-5 text-sm text-[#64748B] sm:grid-cols-2">
+                <p><strong className="text-[#1E293B]">Package:</strong> {clientPackage.package.name}</p>
+                <p><strong className="text-[#1E293B]">Total Sessions:</strong> {clientPackage.total_sessions}</p>
+                <p><strong className="text-[#1E293B]">Sessions Used:</strong> {clientPackage.sessions_used}</p>
+                <p><strong className="text-[#1E293B]">Remaining:</strong> {clientPackage.sessions_remaining}</p>
+                <p><strong className="text-[#1E293B]">Expires:</strong> {new Date(clientPackage.expires_at).toLocaleDateString()}</p>
+              </div>
+            ) : (
+              <div className="mt-4 rounded-2xl border border-dashed border-[#E2E8F0] p-6 text-center">
+                <p className="text-[#64748B]">You don't have an active package.</p>
+                <button
+                  onClick={() => navigate("/client/packages")}
+                  className="mt-3 rounded-full bg-emerald-500 px-5 py-2 text-sm font-semibold text-white hover:bg-emerald-600"
+                >
+                  View Packages
+                </button>
+              </div>
+            )}
+          </section>
 
-            <p>
-              No previous sessions.
-            </p>
+          {/* Shared Notes */}
+          <section className="mt-6 rounded-[28px] border border-[#E2E8F0] bg-[#F1F5F9] p-6 shadow-sm sm:p-8">
+            <div className="flex items-center gap-3">
+              <FileText size={20} className="text-emerald-500" />
+              <h2 className="font-display text-2xl font-semibold text-[#1E293B]">Shared Notes</h2>
+            </div>
+            {sharedNotes.filter(isMeaningfulSharedNote).length > 0 ? (
+              sharedNotes.filter(isMeaningfulSharedNote).map((note) => (
+                <div key={note._id} className="mt-4 border-b border-[#E2E8F0] pb-4 last:border-0">
+                  <div className="flex items-center justify-between">
+                    <h3 className="font-semibold text-[#1E293B]">Session Note</h3>
+                    <span className="text-xs text-[#64748B]">{new Date(note.createdAt).toLocaleDateString()}</span>
+                  </div>
+                  <div
+                    className="prose prose-sm max-w-none text-[#64748B]"
+                    dangerouslySetInnerHTML={{ __html: sanitizeNoteHtml(note.content) }}
+                  />
+                </div>
+              ))
+            ) : (
+              <p className="mt-4 text-sm text-[#64748B]">No shared notes yet.</p>
+            )}
+          </section>
 
-          )}
-
-        </section>
-
+          {/* Session History */}
+          <section className="mt-6 rounded-[28px] border border-[#E2E8F0] bg-white p-6 shadow-sm sm:p-8">
+            <div className="flex items-center gap-3">
+              <Calendar size={20} className="text-emerald-500" />
+              <h2 className="font-display text-2xl font-semibold text-[#1E293B]">Recent Sessions</h2>
+            </div>
+            {sessions.length > 0 ? (
+              sessions.map((session) => (
+                <div
+                  key={session._id}
+                  className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-2xl border border-[#E2E8F0] p-4 transition-shadow hover:shadow-sm"
+                >
+                  <span className="text-sm font-medium text-[#64748B]">
+                    {new Date(session.starts_at).toLocaleDateString()}
+                  </span>
+                  <span className="text-sm text-[#1E293B]">{session.therapist.name}</span>
+                  <span
+                    className={`text-xs font-bold capitalize ${
+                      session.status === 'completed'
+                        ? 'text-emerald-600'
+                        : session.status === 'cancelled'
+                        ? 'text-red-500'
+                        : 'text-amber-500'
+                    }`}
+                  >
+                    {session.status}
+                  </span>
+                  <button
+                    className="rounded-full bg-emerald-500 px-4 py-2 text-sm font-semibold text-white transition-colors hover:bg-emerald-600"
+                    onClick={() => setSelectedSession(session)}
+                  >
+                    View
+                  </button>
+                </div>
+              ))
+            ) : (
+              <p className="mt-4 text-sm text-[#64748B]">No previous sessions.</p>
+            )}
+          </section>
+        </div>
       </main>
 
+      {/* Modal */}
       <Modal open={Boolean(selectedSession)}>
-        {selectedSession && <div>
-          <div className="flex items-start justify-between gap-4">
-            <div><p className="text-xs font-bold uppercase tracking-[.16em] text-moss">Session details</p><h2 className="mt-2 font-display text-2xl font-semibold">Your therapy session</h2></div>
-            <button onClick={() => setSelectedSession(null)} className="text-sm font-bold text-ink/45 hover:text-ink">Close</button>
+        {selectedSession && (
+          <div>
+            <div className="flex items-start justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-[.16em] text-emerald-600">Session details</p>
+                <h2 className="mt-2 font-display text-2xl font-semibold text-[#1E293B]">Your therapy session</h2>
+              </div>
+              <button
+                onClick={() => setSelectedSession(null)}
+                className="text-sm font-bold text-[#64748B] hover:text-[#1E293B]"
+              >
+                Close
+              </button>
+            </div>
+            <div className="mt-6 space-y-3 rounded-2xl bg-[#FAFAF9] p-5 text-sm text-[#64748B]">
+              <p><strong className="text-[#1E293B]">Session:</strong> {selectedSession.session_code || 'Code pending'}</p>
+              <p><strong className="text-[#1E293B]">Therapist:</strong> {selectedSession.therapist?.name || 'Your therapist'}</p>
+              <p><strong className="text-[#1E293B]">Date:</strong> {new Date(selectedSession.starts_at).toLocaleDateString()}</p>
+              <p><strong className="text-[#1E293B]">Time:</strong> {new Date(selectedSession.starts_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</p>
+              <p>
+                <strong className="text-[#1E293B]">Status:</strong>
+                <span className={`ml-1 capitalize ${selectedSession.status === 'completed' ? 'text-emerald-600' : selectedSession.status === 'cancelled' ? 'text-red-500' : 'text-amber-500'}`}>
+                  {selectedSession.status}
+                </span>
+              </p>
+            </div>
+            <button
+              onClick={() =>
+                navigate(`/chat/${selectedSession._id}?code=${selectedSession.session_code || ''}&resume=${Date.now()}`)
+              }
+              className="mt-6 w-full rounded-full bg-emerald-500 px-5 py-3 text-sm font-bold text-white transition-colors hover:bg-emerald-600"
+            >
+              Join / resume session
+            </button>
           </div>
-          <div className="mt-6 space-y-3 rounded-2xl bg-cream p-5 text-sm text-ink/70">
-            <p><strong>Session:</strong> {selectedSession.session_code || 'Code pending'}</p>
-            <p><strong>Therapist:</strong> {selectedSession.therapist?.name || 'Your therapist'}</p>
-            <p><strong>Date:</strong> {new Date(selectedSession.starts_at).toLocaleDateString()}</p>
-            <p><strong>Time:</strong> {new Date(selectedSession.starts_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</p>
-            <p><strong>Status:</strong> <span className="capitalize">{selectedSession.status}</span></p>
-          </div>
-          <button onClick={() => navigate(`/chat/${selectedSession._id}?code=${selectedSession.session_code || ''}&resume=${Date.now()}`)} className="mt-6 w-full rounded-full bg-moss px-5 py-3 text-sm font-bold text-white hover:bg-ink">Join / resume session</button>
-        </div>}
+        )}
       </Modal>
-
-    </div>
+    </>
   );
 }
 

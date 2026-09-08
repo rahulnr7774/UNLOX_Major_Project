@@ -3,6 +3,7 @@ const crypto = require('crypto');
 const Client = require('../models/Client');
 const Lead = require('../models/Lead');
 const { sendClientLoginAccess } = require('../services/emailServices');
+const { canAccess } = require('../services/entitlementService');
 
 function createTemporaryPassword() {
   return crypto.randomBytes(9).toString('base64url');
@@ -25,6 +26,7 @@ async function listLeads(req, res) {
 }
 
 async function acceptLead(req, res) {
+  if (!await canAccess(req.therapist._id, 'active_clients')) return res.status(403).json({ message: 'Your active-client limit has been reached.', featureKey: 'active_clients', upgradeRequired: true });
   const lead = await Lead.findOne({ _id: req.params.id, status: 'new', $or: [{ therapist_id: req.therapist._id }, { therapist_id: null }] });
   if (!lead) return res.status(404).json({ message: 'Pending client request not found' });
   if (!lead.email) return res.status(400).json({ message: 'A client email is required before access can be granted' });
