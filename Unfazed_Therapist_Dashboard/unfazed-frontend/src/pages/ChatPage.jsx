@@ -76,7 +76,8 @@ export default function ChatPage() {
 
   useEffect(() => {
     if (user?.role !== 'client' || !activeSessionId) return undefined
-    const socket = io(import.meta.env.VITE_API_URL || 'http://localhost:5000', {
+    const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+    const socket = io(socketUrl.match(/^https?:\/\//) ? socketUrl : `https://${socketUrl}`, {
       auth: { token: localStorage.getItem('unfazed_token') }
     })
     socket.on('connect', () => {
