@@ -1,0 +1,9 @@
+{
+  "name": "unfazed-therapist-dashboard",
+  "private": true,
+  "scripts": {
+    "postinstall": "npm --prefix Unfazed_Therapist_Dashboard/unfazed-backend install",
+    "build": "npm --prefix Unfazed_Therapist_Dashboard/unfazed-backend install",
+    "start": "npm --prefix Unfazed_Therapist_Dashboard/unfazed-backend start"
+  }
+}
