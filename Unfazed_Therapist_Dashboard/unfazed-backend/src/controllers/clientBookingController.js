@@ -112,7 +112,7 @@ async function listTherapists(req, res) {
   if (req.query.specialization?.trim()) {
     filter.specializations = { $regex: req.query.specialization.trim(), $options: 'i' };
   }
-  const therapists = await Therapist.find(filter).select('name slug bio specializations languages session_rate');
+  const therapists = await Therapist.find(filter).select('name slug bio profile_image specializations languages session_rate');
   return res.status(200).json({ therapists });
 }
 

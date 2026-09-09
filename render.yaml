@@ -1,0 +1,8 @@
+services:
+  - type: web
+    name: unfazed-backend
+    runtime: node
+    rootDir: Unfazed_Therapist_Dashboard/unfazed-backend
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health

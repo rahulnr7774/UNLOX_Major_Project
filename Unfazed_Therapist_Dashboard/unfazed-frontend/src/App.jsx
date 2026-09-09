@@ -15,6 +15,7 @@ import Sessions from './pages/therapist/Sessions'
 import ChatPage from './pages/ChatPage'
 import PublicProfile from './pages/PublicProfile'
 import ClientProfile from './pages/client/ClientProfile'
+import ClientNotes from './pages/client/Notes'
 import Payment from './pages/client/Payment'
 import TherapistProfile from './pages/therapist/TherapistProfile'
 import TherapistLayout from './components/common/TherapistLayout'
@@ -81,6 +82,7 @@ export default function App() {
 		<Route path="/client-portal" element={<ProtectedRoute role="client"><ClientPortal /></ProtectedRoute>} />
 		<Route path="/client/profile" element={<ProtectedRoute role="client"><ClientProfile /></ProtectedRoute>} />
 		<Route path="/client/chat" element={<ProtectedRoute role="client"><ChatPage /></ProtectedRoute>} />
+		<Route path="/client/notes" element={<ProtectedRoute role="client"><ClientNotes /></ProtectedRoute>} />
 		<Route path="/client/book" element={<ProtectedRoute role="client"><BookingPage /></ProtectedRoute>} />
 		<Route path="/client/payments" element={<ProtectedRoute role="client"><Payment /></ProtectedRoute>} />
 		<Route path="/sessions" element={<ProtectedRoute role="therapist"><Sessions /></ProtectedRoute>} />

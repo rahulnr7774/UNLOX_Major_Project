@@ -375,8 +375,8 @@ export default function BookingPage() {
                   {/* Hover card */}
                   <div className="pointer-events-none absolute left-4 right-4 top-full z-30 mt-3 origin-top scale-95 rounded-[24px] border border-[#E2E8F0] bg-white p-5 opacity-0 shadow-[0_24px_60px_rgba(31,41,36,.16)] transition duration-200 ease-out group-hover:pointer-events-auto group-hover:scale-100 group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:scale-100 group-focus-within:opacity-100">
                     <div className="flex items-start gap-3 border-b border-[#E2E8F0] pb-4">
-                      <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-2xl bg-emerald-50 font-display text-lg font-semibold text-emerald-600">
-                        {item.name.split(' ').map((word) => word[0]).join('').slice(0, 2).toUpperCase()}
+                      <div className="h-12 w-12 shrink-0 overflow-hidden rounded-2xl bg-emerald-50 font-display text-lg font-semibold text-emerald-600">
+                        {item.profile_image ? <img src={item.profile_image} alt={`${item.name} profile`} className="h-full w-full object-cover" /> : <div className="flex h-full w-full items-center justify-center">{item.name.split(' ').map((word) => word[0]).join('').slice(0, 2).toUpperCase()}</div>}
                       </div>
                       <div className="min-w-0">
                         <p className="font-display text-lg font-semibold text-[#1E293B]">{item.name}</p>

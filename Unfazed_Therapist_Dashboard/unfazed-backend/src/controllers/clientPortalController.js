@@ -4,6 +4,9 @@ const Session = require('../models/Session');
 const SessionNote = require('../models/SessionNote');
 const Package = require('../models/Package');
 const Payment = require('../models/Payment');
+const fs = require('fs');
+const pdfGenerator = require('../utils/pdfGenerator');
+const { buildInvoiceData } = require('../services/invoiceService');
 
 async function getPortal(req, res) {
   const now = new Date();
@@ -50,4 +53,35 @@ async function updateProfile(req, res) {
   return res.status(200).json({ client });
 }
 
-module.exports = { getPortal, updateProfile };
+async function downloadReceipt(req, res) {
+  const payment = await Payment.findOne({ _id: req.params.paymentId, client_id: req.client._id })
+    .populate('client_id', 'name email')
+    .populate('therapist_id', 'name')
+    .populate('package_id', 'name');
+  if (!payment) return res.status(404).json({ message: 'Payment not found' });
+  if (payment.status !== 'paid') return res.status(403).json({ message: 'Complete payment before downloading the receipt' });
+
+  const invoice = buildInvoiceData(payment);
+  const pdfPath = await pdfGenerator.generateInvoice({
+    ...invoice,
+    companyName: 'UNFAZED',
+    clientName: payment.client_id?.name,
+    clientEmail: payment.client_id?.email,
+    therapistName: payment.therapist_id?.name,
+    description: payment.package_id?.name || (payment.package_id ? 'Therapy package' : 'Therapy session'),
+    invoiceDate: invoice.issuedAt,
+    dueDate: invoice.issuedAt,
+    status: payment.status,
+    currency: payment.currency || 'INR'
+  });
+  const pdf = fs.readFileSync(pdfPath);
+  fs.unlinkSync(pdfPath);
+  res.set({
+    'Content-Type': 'application/pdf',
+    'Content-Disposition': `attachment; filename="${invoice.invoiceNumber}.pdf"`,
+    'Content-Length': pdf.length
+  });
+  return res.send(pdf);
+}
+
+module.exports = { getPortal, updateProfile, downloadReceipt };

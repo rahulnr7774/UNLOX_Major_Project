@@ -19,7 +19,7 @@ const { notFound, errorHandler } = require('./middleware/errorHandler');
 const app = express();
 app.use(helmet());
 app.use(cors({ origin: process.env.CLIENT_URL || 'http://localhost:5173'||'https://api.razorpay.com' }));
-app.use(express.json({ verify: (req, res, buffer) => {
+app.use(express.json({ limit: '3mb', verify: (req, res, buffer) => {
 	if (req.originalUrl === '/payments/webhook') req.rawBody = Buffer.from(buffer);
 } }));
 app.use(morgan('dev'));

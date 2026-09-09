@@ -7,8 +7,14 @@ async function getProfile(req, res) {
 }
 
 async function updateProfile(req, res) {
-  const allowedFields = ['name', 'bio', 'specializations', 'languages'];
+  const allowedFields = ['name', 'bio', 'profile_image', 'specializations', 'languages'];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowedFields.includes(key)));
+  if (updates.profile_image) {
+    const isImageDataUrl = /^data:image\/(jpeg|png|webp);base64,/.test(updates.profile_image);
+    if (!isImageDataUrl || updates.profile_image.length > 3000000) {
+      return res.status(400).json({ message: 'Profile picture must be a JPG, PNG or WebP image smaller than 2 MB.' });
+    }
+  }
   if (updates.name) updates.slug = await generateUniqueSlug(updates.name, Therapist, req.therapist._id);
 
   const therapist = await Therapist.findByIdAndUpdate(req.therapist._id, updates, {

@@ -31,6 +31,11 @@ const therapistSchema = new mongoose.Schema(
       default: ""
     },
 
+    profile_image: {
+      type: String,
+      default: ""
+    },
+
     specializations: {
       type: [String],
       default: []
