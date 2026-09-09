@@ -21,8 +21,11 @@ export default function ChatWindow({ conversationId, onSessionDetails, onSession
   useEffect(() => { sessionEndedRef.current = onSessionEnded }, [onSessionEnded])
 
   useEffect(() => {
-    const socketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
-    const socket = io(socketUrl.match(/^https?:\/\//) ? socketUrl : `https://${socketUrl}`, { auth: { token: localStorage.getItem('unfazed_token') } })
+    const configuredSocketUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
+    const socketUrl = configuredSocketUrl.match(/^https?:\/\//) ? configuredSocketUrl : `https://${configuredSocketUrl}`
+    const parsedSocketUrl = new URL(socketUrl)
+    if (!['localhost', '127.0.0.1'].includes(parsedSocketUrl.hostname) && parsedSocketUrl.port === '5000') parsedSocketUrl.port = ''
+    const socket = io(parsedSocketUrl.toString(), { auth: { token: localStorage.getItem('unfazed_token') } })
     socketRef.current = socket
     socket.on('connect', () => socket.emit('chat:join', conversationId))
     socket.on('chat:history', (history) => {

@@ -3,7 +3,11 @@ import axios from 'axios'
 function getApiUrl() {
   const configuredUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000'
   const url = configuredUrl.match(/^https?:\/\//) ? configuredUrl : `https://${configuredUrl}`
-  return url.replace(/\/$/, '')
+  const parsedUrl = new URL(url)
+  if (!['localhost', '127.0.0.1'].includes(parsedUrl.hostname) && parsedUrl.port === '5000') {
+    parsedUrl.port = ''
+  }
+  return parsedUrl.toString().replace(/\/$/, '')
 }
 
 const axiosInstance = axios.create({
