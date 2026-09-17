@@ -22,7 +22,13 @@ axiosInstance.interceptors.request.use((config) => {
 })
 
 axiosInstance.interceptors.response.use((response) => response, (error) => {
-  if (error.response?.status === 401) localStorage.removeItem('unfazed_token')
+  const requestUrl = error.config?.url || ''
+  const isAuthRequest = requestUrl.startsWith('/auth/')
+  if (error.response?.status === 401 && !isAuthRequest && localStorage.getItem('unfazed_token')) {
+    localStorage.removeItem('unfazed_token')
+    localStorage.removeItem('unfazed_user')
+    window.location.replace('/login')
+  }
   return Promise.reject(error)
 })
 

@@ -1,9 +1,13 @@
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const crypto = require('crypto');
+const { OAuth2Client } = require('google-auth-library');
 const Therapist = require('../models/Therapist');
 const Client = require('../models/Client');
 const { generateUniqueSlug } = require('../utils/generateSlug');
 const { sendNotification } = require('../services/notificationService');
+
+const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
 function createToken(id, role) {
   return jwt.sign({ id, role }, process.env.JWT_SECRET, { expiresIn: '7d' });
@@ -48,8 +52,46 @@ async function login(req, res) {
   return res.status(401).json({ message: 'Invalid email or password' });
 }
 
+async function googleAuth(req, res) {
+  if (!process.env.GOOGLE_CLIENT_ID) return res.status(503).json({ message: 'Google sign-in is not configured' });
+  if (!req.body.credential) return res.status(400).json({ message: 'Google credential is required' });
+
+  const ticket = await googleClient.verifyIdToken({
+    idToken: req.body.credential,
+    audience: process.env.GOOGLE_CLIENT_ID,
+  });
+  const profile = ticket.getPayload();
+  if (!profile?.email || !profile.email_verified) return res.status(401).json({ message: 'Your Google email could not be verified' });
+
+  const email = profile.email.trim().toLowerCase();
+  const existingTherapist = await Therapist.findOne({ email });
+  if (existingTherapist) {
+    return res.status(200).json({ token: createToken(existingTherapist._id, 'therapist'), therapist: publicTherapist(existingTherapist) });
+  }
+
+  const existingClient = await Client.findOne({ email }).select('+password_hash');
+  if (existingClient) {
+    const client = existingClient.toObject();
+    delete client.password_hash;
+    return res.status(200).json({ token: createToken(existingClient._id, 'client'), client });
+  }
+
+  const name = profile.name?.trim() || profile.email.split('@')[0];
+  const slug = await generateUniqueSlug(name, Therapist);
+  const therapist = await Therapist.create({
+    name,
+    email,
+    password_hash: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12),
+    slug,
+    profile_image: profile.picture || '',
+  });
+  await sendNotification({ channel: 'email', recipient: email, subject: 'Welcome to Unfazed', message: 'Your therapist account is ready.' });
+
+  return res.status(201).json({ token: createToken(therapist._id, 'therapist'), therapist: publicTherapist(therapist) });
+}
+
 async function getCurrentTherapist(req, res) {
   return res.status(200).json({ therapist: req.therapist });
 }
 
-module.exports = { register, login, getCurrentTherapist };
+module.exports = { register, login, googleAuth, getCurrentTherapist };

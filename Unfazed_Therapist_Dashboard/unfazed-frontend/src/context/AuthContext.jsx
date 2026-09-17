@@ -4,13 +4,21 @@ const AuthContext = createContext(null)
 
 function readStoredUser() {
   const token = localStorage.getItem('unfazed_token')
-  const storedUser = JSON.parse(localStorage.getItem('unfazed_user') || 'null')
+  let storedUser
+
+  try {
+    storedUser = JSON.parse(localStorage.getItem('unfazed_user') || 'null')
+  } catch {
+    localStorage.removeItem('unfazed_token')
+    localStorage.removeItem('unfazed_user')
+    return null
+  }
 
   if (!token || !storedUser) return null
 
   try {
     const payload = JSON.parse(atob(token.split('.')[1]))
-    if (payload.role !== storedUser.role) {
+    if ((payload.exp && payload.exp * 1000 <= Date.now()) || payload.role !== storedUser.role) {
       localStorage.removeItem('unfazed_token')
       localStorage.removeItem('unfazed_user')
       return null

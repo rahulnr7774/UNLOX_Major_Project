@@ -14,6 +14,7 @@ import { useNavigate } from "react-router-dom";
 import axiosInstance from "../../api/axiosInstance";
 import CheckoutForm from "../../components/payments/CheckoutForm";
 import InvoiceView from "../../components/payments/InvoiceView";
+import useBodyScrollLock from "../../hooks/useBodyScrollLock";
 
 function formatDate(value) {
   return value
@@ -88,6 +89,7 @@ export default function Payment() {
   const [packages, setPackages] = useState([]);
   const [selectedPayment, setSelectedPayment] = useState(null);
   const [selectedPackage, setSelectedPackage] = useState(null);
+  useBodyScrollLock(Boolean(selectedPayment || selectedPackage));
   const [loading, setLoading] = useState(true);
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [error, setError] = useState("");
@@ -522,8 +524,8 @@ export default function Payment() {
           RECEIPT MODAL
       =========================================================== */}
       {selectedPayment && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1E293B]/45 p-4 sm:p-6">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[26px] bg-[#FAFAF9] p-5 shadow-2xl sm:p-7">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overscroll-contain overflow-y-auto bg-[#1E293B]/45 p-4 sm:p-6">
+          <div className="my-4 max-h-[calc(100vh-2rem)] w-full max-w-lg overscroll-contain overflow-y-auto rounded-[26px] bg-[#FAFAF9] p-5 shadow-2xl sm:p-7">
             <div className="flex items-start justify-between gap-5">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-600">
@@ -580,8 +582,8 @@ export default function Payment() {
           CHECKOUT MODAL
       =========================================================== */}
       {selectedPackage && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1E293B]/45 p-4 sm:p-6">
-          <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-[26px] bg-[#FAFAF9] p-5 shadow-2xl sm:p-7">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overscroll-contain overflow-y-auto bg-[#1E293B]/45 p-4 sm:p-6">
+          <div className="my-4 max-h-[calc(100vh-2rem)] w-full max-w-lg overscroll-contain overflow-y-auto rounded-[26px] bg-[#FAFAF9] p-5 shadow-2xl sm:p-7">
             <div className="flex items-start justify-between gap-5">
               <div>
                 <div className="inline-flex items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.14em] text-emerald-600">

@@ -3,17 +3,33 @@ const crypto = require('crypto');
 const Client = require('../models/Client');
 const Lead = require('../models/Lead');
 const { sendClientLoginAccess } = require('../services/emailServices');
-const { canAccess } = require('../services/entitlementService');
 
 function createTemporaryPassword() {
   return crypto.randomBytes(9).toString('base64url');
+}
+
+function escapeRegex(value) {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 }
 
 async function createLead(req, res) {
   const { name, email, phone, presenting_concern } = req.body;
   if (!name || !email) return res.status(400).json({ message: 'Name and email are required' });
 
-  const lead = await Lead.create({ name, email, phone, presenting_concern, status: 'new' });
+  const normalizedName = name.trim();
+  const normalizedEmail = email.trim().toLowerCase();
+  const existingLead = await Lead.findOne({
+    $or: [
+      { email: normalizedEmail },
+      { name: { $regex: `^${escapeRegex(normalizedName)}$`, $options: 'i' } }
+    ]
+  }).select('_id');
+
+  if (existingLead) {
+    return res.status(409).json({ message: 'A lead with this name or email already exists. Please use a different name or email.' });
+  }
+
+  const lead = await Lead.create({ name: normalizedName, email: normalizedEmail, phone, presenting_concern, status: 'new' });
   return res.status(201).json({ lead });
 }
 
@@ -26,7 +42,6 @@ async function listLeads(req, res) {
 }
 
 async function acceptLead(req, res) {
-  if (!await canAccess(req.therapist._id, 'active_clients')) return res.status(403).json({ message: 'Your active-client limit has been reached.', featureKey: 'active_clients', upgradeRequired: true });
   const lead = await Lead.findOne({ _id: req.params.id, status: 'new', $or: [{ therapist_id: req.therapist._id }, { therapist_id: null }] });
   if (!lead) return res.status(404).json({ message: 'Pending client request not found' });
   if (!lead.email) return res.status(400).json({ message: 'A client email is required before access can be granted' });

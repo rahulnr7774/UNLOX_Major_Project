@@ -3,6 +3,7 @@ import { ArrowRight, HeartHandshake, LockKeyhole, Mail } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import axiosInstance from '../../api/axiosInstance'
 import { useAuth } from '../../context/AuthContext'
+import GoogleAuthButton from './GoogleAuthButton'
 
 const headlines = [
   'Care works better when your practice does too.',
@@ -45,6 +46,22 @@ export default function Login() {
     }
   }
 
+  async function signInWithGoogle(credentialResponse) {
+    setLoading(true)
+    setError('')
+    try {
+      const { data } = await axiosInstance.post('/auth/google', { credential: credentialResponse.credential })
+      localStorage.setItem('unfazed_token', data.token)
+      const account = data.client ? { ...data.client, role: 'client' } : { ...data.therapist, role: 'therapist' }
+      login(account)
+      navigate(account.role === 'client' ? '/client-portal' : '/dashboard', { replace: true })
+    } catch (requestError) {
+      setError(requestError.response?.data?.message || 'Unable to sign in with Google.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
   return (
     <AuthLayout
       role={role}
@@ -61,6 +78,8 @@ export default function Login() {
         <button disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-ink text-sm font-bold text-white hover:bg-moss disabled:opacity-60">
           {loading ? 'Signing in...' : 'Sign in'} <ArrowRight size={17} />
         </button>
+        <div className="flex items-center gap-3 py-1 text-xs font-semibold uppercase tracking-[.14em] text-ink/35"><span className="h-px flex-1 bg-ink/10" />or<span className="h-px flex-1 bg-ink/10" /></div>
+        <GoogleAuthButton disabled={loading} onSuccess={signInWithGoogle} onError={() => setError('Unable to sign in with Google.')} />
         <p className="text-center text-sm text-ink/55">Don't have an account? <Link to="/register" className="font-bold text-moss hover:text-ink">Create one</Link></p>
       </form>
     </AuthLayout>

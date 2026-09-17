@@ -6,7 +6,7 @@ const ChatMessage = require('../models/ChatMessage');
 
 async function getParticipant(sessionId, user) {
   const session = await Session.findById(sessionId).select('therapist_id client_id started_at ends_at status');
-  if (!session || !session.started_at || session.status === 'completed') return null;
+  if (!session || !session.started_at) return null;
   const userId = String(user.id);
   const isTherapist = user.role === 'therapist' && String(session.therapist_id) === userId;
   const isClient = user.role === 'client' && String(session.client_id) === userId;
@@ -59,7 +59,7 @@ function registerChatSocket(io) {
     socket.on('chat:message', async ({ conversationId, message }) => {
       if (!conversationId || !message?.trim() || socket.sessionId !== String(conversationId)) return;
       const participant = await getParticipant(conversationId, socket.user);
-      if (!participant) return;
+      if (!participant || participant.session.status === 'completed') return;
       const saved = await ChatMessage.create({
         session_id: conversationId,
         sender_id: socket.user.id,

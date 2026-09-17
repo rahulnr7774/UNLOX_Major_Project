@@ -9,6 +9,7 @@ import {
   XCircle,
   ChevronRight,
   Sparkles,
+  LoaderCircle,
 } from 'lucide-react'
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
@@ -20,6 +21,7 @@ export default function Clients() {
 
   const [leads, setLeads] = useState([])
   const [clients, setClients] = useState([])
+  const [acceptingLeadId, setAcceptingLeadId] = useState(null)
   const [query, setQuery] = useState('')
   const [status, setStatus] = useState('')
   const [sort, setSort] = useState({
@@ -61,6 +63,10 @@ export default function Clients() {
   }, [])
 
   async function acceptLead(id) {
+    if (acceptingLeadId) return
+
+    setAcceptingLeadId(id)
+    setState((current) => ({ ...current, error: '' }))
     try {
       await axiosInstance.patch(`/leads/${id}/accept`)
       await loadClients()
@@ -71,6 +77,8 @@ export default function Clients() {
           requestError.response?.data?.message ||
           'Unable to approve this request.',
       }))
+    } finally {
+      setAcceptingLeadId(null)
     }
   }
 
@@ -295,10 +303,20 @@ export default function Clients() {
                 <button
                   type="button"
                   onClick={() => acceptLead(lead._id)}
-                  className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-purple-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-violet-200 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-violet-300 active:scale-[0.98]"
+                  disabled={Boolean(acceptingLeadId)}
+                  className="inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-violet-500 to-purple-600 px-6 py-2.5 text-sm font-bold text-white shadow-lg shadow-violet-200 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-xl hover:shadow-violet-300 active:scale-[0.98] disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:translate-y-0"
                 >
-                  Approve access
-                  <ChevronRight size={15} />
+                  {acceptingLeadId === lead._id ? (
+                    <>
+                      Approving...
+                      <LoaderCircle size={15} className="animate-spin" />
+                    </>
+                  ) : (
+                    <>
+                      Approve access
+                      <ChevronRight size={15} />
+                    </>
+                  )}
                 </button>
               </div>
             ))}

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { ArrowLeft, Calendar, Check, ChevronLeft, ChevronRight, Clock3, CreditCard, Leaf, Search, X } from 'lucide-react'
 import { useNavigate } from 'react-router-dom'
 import axiosInstance from '../../api/axiosInstance'
+import useBodyScrollLock from '../../hooks/useBodyScrollLock'
 
 const durations = [30, 45, 60, 90]
 
@@ -37,8 +38,8 @@ function calendarWeeksForMonth(value) {
 
 function DateBookingModal({ date, duration, slots, slotLoading, selectedSlot, therapist, activePackage, paymentLoading, waitlistLoading, onClose, onSelectSlot, onBook, onPackageBook, onWaitlist }) {
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1E293B]/40 p-5" role="dialog" aria-modal="true" aria-labelledby="date-booking-title">
-      <div className="w-full max-w-lg rounded-[28px] bg-white p-6 shadow-2xl sm:p-8">
+    <div className="fixed inset-0 z-50 flex items-center justify-center overscroll-contain overflow-y-auto bg-[#1E293B]/40 p-5" role="dialog" aria-modal="true" aria-labelledby="date-booking-title">
+      <div className="my-4 max-h-[calc(100vh-2rem)] w-full max-w-lg overscroll-contain overflow-y-auto rounded-[28px] bg-white p-6 shadow-2xl sm:p-8">
         <div className="flex items-start justify-between gap-4">
           <div>
             <p className="text-sm font-semibold uppercase tracking-[.15em] text-emerald-600">Choose your time</p>
@@ -139,6 +140,7 @@ export default function BookingPage() {
   const [showWaitlistModal, setShowWaitlistModal] = useState(false)
   const [showDateModal, setShowDateModal] = useState(false)
   const clientTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone
+  useBodyScrollLock(showDateModal || showWaitlistModal)
   const todayKey = localDateKey(new Date())
   const currentMonthKey = monthKey(new Date())
   const calendarWeeks = calendarWeeksForMonth(selectedMonth)
@@ -568,8 +570,8 @@ export default function BookingPage() {
 
       {/* Waitlist Modal */}
       {showWaitlistModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-[#1E293B]/40 p-5" role="dialog" aria-modal="true" aria-labelledby="waitlist-title">
-          <div className="w-full max-w-md rounded-[28px] bg-white p-6 shadow-2xl sm:p-8">
+        <div className="fixed inset-0 z-50 flex items-center justify-center overscroll-contain overflow-y-auto bg-[#1E293B]/40 p-5" role="dialog" aria-modal="true" aria-labelledby="waitlist-title">
+          <div className="my-4 max-h-[calc(100vh-2rem)] w-full max-w-md overscroll-contain overflow-y-auto rounded-[28px] bg-white p-6 shadow-2xl sm:p-8">
             <div className="flex items-start justify-between gap-4">
               <div>
                 <p className="text-sm font-semibold uppercase tracking-[.15em] text-emerald-600">No slot available</p>
