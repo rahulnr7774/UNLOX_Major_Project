@@ -1,4 +1,5 @@
 require('dotenv').config();
+require('dns').setDefaultResultOrder('ipv4first');
 const http = require('http');
 const { Server } = require('socket.io');
 const app = require('./src/app');
