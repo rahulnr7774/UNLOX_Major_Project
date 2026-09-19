@@ -1,4 +1,5 @@
-import { createContext, useContext, useState } from 'react'
+import { createContext, useContext, useEffect, useState } from 'react'
+import axiosInstance from '../api/axiosInstance'
 
 const AuthContext = createContext(null)
 
@@ -37,6 +38,20 @@ export function AuthProvider({ children }) {
   const login = (nextUser) => { localStorage.setItem('unfazed_user', JSON.stringify(nextUser)); setUser(nextUser) }
   const updateUser = (nextUser) => { localStorage.setItem('unfazed_user', JSON.stringify(nextUser)); setUser(nextUser) }
   const logout = () => { localStorage.removeItem('unfazed_user'); localStorage.removeItem('unfazed_token'); setUser(null) }
+
+  useEffect(() => {
+    if (user?.role !== 'client' || !localStorage.getItem('unfazed_token')) return
+
+    let active = true
+    axiosInstance.get('/clients/approval-status')
+      .then(({ data }) => {
+        if (active && data.client) updateUser({ ...data.client, role: 'client' })
+      })
+      .catch(() => {})
+
+    return () => { active = false }
+  }, [])
+
   return <AuthContext.Provider value={{ user, login, updateUser, logout, isAuthenticated: Boolean(user) }}>{children}</AuthContext.Provider>
 }
 

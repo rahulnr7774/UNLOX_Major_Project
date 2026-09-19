@@ -1,15 +1,58 @@
 const { sendEmail } = require('./emailServices');
 const Notification = require('../models/Notification');
 const Session = require('../models/Session');
+const Client = require('../models/Client');
+const Therapist = require('../models/Therapist');
 
-async function sendNotification({ channel, recipient, subject, message }) {
-  if (channel !== 'email') {
-    console.log(`[notification:${channel}] ${recipient} - ${subject}: ${message}`);
-    return { delivered: false, channel, recipient };
+async function findRecipient(recipient) {
+  const client = await Client.findOne({ email: recipient }).select('_id').lean();
+  if (client) return { ...client, recipientRole: 'client' };
+  const therapist = await Therapist.findOne({ email: recipient }).select('_id').lean();
+  return therapist ? { ...therapist, recipientRole: 'therapist' } : null;
+}
+
+async function recordInAppNotification({ event = 'system', recipientId, recipientRole, subject, message, metadata = {}, dedupeKey }) {
+  if (!recipientId) return null;
+  const notification = await Notification.findOneAndUpdate(
+    { dedupe_key: dedupeKey },
+    { $setOnInsert: { event, recipient_id: recipientId, recipient_role: recipientRole, channel: 'email', subject, message, metadata, dedupe_key: dedupeKey, status: 'sent', sent_at: new Date() } },
+    { upsert: true, new: true, setDefaultsOnInsert: true }
+  );
+  return notification;
+}
+
+async function sendNotification({ channel, recipient, subject, message, event = 'system', recipientId, recipientRole, metadata = {}, dedupeKey, persistInApp = true }) {
+  let inAppNotification = null;
+  if (persistInApp && channel === 'email') {
+    const resolvedRecipient = recipientId ? { _id: recipientId } : await findRecipient(recipient);
+    inAppNotification = await recordInAppNotification({
+      event,
+      recipientId: resolvedRecipient?._id,
+      recipientRole: recipientRole || resolvedRecipient?.recipientRole || 'client',
+      subject,
+      message,
+      metadata,
+      dedupeKey: dedupeKey || `notification:${recipient}:${subject}`
+    });
   }
 
-  const result = await sendEmail({ to: recipient, subject, text: message, html: `<p>${message}</p>` });
-  return { delivered: true, channel, recipient, messageId: result.messageId };
+  if (channel !== 'email') {
+    console.log(`[notification:${channel}] ${recipient} - ${subject}: ${message}`);
+    return { delivered: false, channel, recipient, inAppNotification };
+  }
+
+  try {
+    const result = await sendEmail({ to: recipient, subject, text: message, html: `<p>${message}</p>` });
+    return { delivered: true, channel, recipient, messageId: result.messageId, inAppNotification };
+  } catch (error) {
+    console.error(`[notification:email] delivery skipped for ${recipient}: ${error.message}`);
+    if (inAppNotification) {
+      inAppNotification.status = 'failed';
+      inAppNotification.error = error.message;
+      await inAppNotification.save();
+    }
+    return { delivered: false, channel, recipient, error: error.message, inAppNotification };
+  }
 }
 
 async function recordNotification({ event, recipientId, recipientRole, recipientEmail, subject, message, metadata = {}, dedupeKey }) {
@@ -27,16 +70,33 @@ async function recordNotification({ event, recipientId, recipientRole, recipient
   }
 
   try {
-    await sendNotification({ channel: 'email', recipient: recipientEmail, subject, message });
-    notification.status = 'sent';
-    notification.sent_at = new Date();
-    notification.error = undefined;
+    const result = await sendNotification({ channel: 'email', recipient: recipientEmail, subject, message, persistInApp: false });
+    if (result.delivered) {
+      notification.status = 'sent';
+      notification.sent_at = new Date();
+      notification.error = undefined;
+    } else {
+      notification.status = 'failed';
+      notification.error = result.error || 'Notification was not delivered';
+    }
   } catch (error) {
     notification.status = 'failed';
     notification.error = error.message;
   }
   await notification.save();
   return notification;
+}
+
+async function markInAppApprovalNotification(client, therapistName) {
+  return recordInAppNotification({
+    event: 'system',
+    recipientId: client._id,
+    recipientRole: 'client',
+    subject: 'Your client access has been approved',
+    message: `${therapistName} approved your request to access the Unfazed client portal.`,
+    metadata: { client_id: client._id },
+    dedupeKey: `client-approved:${client._id}`
+  });
 }
 
 async function notifyBookingConfirmed(sessionId) {
@@ -67,4 +127,4 @@ async function processNotificationJobs() {
   await Promise.all(sessions.map(notifySessionReminder));
 }
 
-module.exports = { sendNotification, recordNotification, notifyBookingConfirmed, notifyPostSessionFollowUp, processNotificationJobs };
+module.exports = { sendNotification, recordNotification, recordInAppNotification, markInAppApprovalNotification, notifyBookingConfirmed, notifyPostSessionFollowUp, processNotificationJobs };

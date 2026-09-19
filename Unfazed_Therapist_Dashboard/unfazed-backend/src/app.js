@@ -14,6 +14,7 @@ const noteRoutes = require('./routes/noteRoutes');
 const analyticsRoutes = require('./routes/analyticsRoutes');
 const leadRoutes = require('./routes/leadRoutes');
 const packageRoutes = require('./routes/packageRoutes');
+const notificationRoutes = require('./routes/notificationRoutes');
 const { notFound, errorHandler } = require('./middleware/errorHandler');
 
 const app = express();
@@ -39,6 +40,7 @@ app.use('/notes', noteRoutes);
 app.use('/analytics', analyticsRoutes);
 app.use('/leads', leadRoutes);
 app.use('/packages', packageRoutes);
+app.use('/notifications', notificationRoutes);
 app.use(notFound);
 app.use(errorHandler);
 module.exports = app;

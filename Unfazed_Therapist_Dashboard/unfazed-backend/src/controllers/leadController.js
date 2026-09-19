@@ -1,12 +1,8 @@
-const bcrypt = require('bcryptjs');
-const crypto = require('crypto');
 const Client = require('../models/Client');
 const Lead = require('../models/Lead');
-const { sendClientLoginAccess } = require('../services/emailServices');
-
-function createTemporaryPassword() {
-  return crypto.randomBytes(9).toString('base64url');
-}
+const { sendClientApprovalNotification } = require('../services/emailServices');
+const { markInAppApprovalNotification } = require('../services/notificationService');
+const { isValidEmail, isValidPhone } = require('../utils/validation');
 
 function escapeRegex(value) {
   return value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -15,6 +11,8 @@ function escapeRegex(value) {
 async function createLead(req, res) {
   const { name, email, phone, presenting_concern } = req.body;
   if (!name || !email) return res.status(400).json({ message: 'Name and email are required' });
+  if (!isValidEmail(email)) return res.status(400).json({ message: 'Please enter a valid email address' });
+  if (phone && !isValidPhone(phone)) return res.status(400).json({ message: 'Phone number must contain exactly 10 digits' });
 
   const normalizedName = name.trim();
   const normalizedEmail = email.trim().toLowerCase();
@@ -46,33 +44,33 @@ async function acceptLead(req, res) {
   if (!lead) return res.status(404).json({ message: 'Pending client request not found' });
   if (!lead.email) return res.status(400).json({ message: 'A client email is required before access can be granted' });
 
-  const temporaryPassword = createTemporaryPassword();
-  const client = await Client.create({
-    therapist_id: req.therapist._id,
-    name: lead.name,
+  const client = await Client.findOne({
+    _id: lead.converted_client_id,
     email: lead.email,
-    phone: lead.phone,
-    presenting_concern: lead.presenting_concern,
-    password_hash: await bcrypt.hash(temporaryPassword, 12)
+    approval_status: 'pending'
   });
+  if (!client) return res.status(404).json({ message: 'The client account for this request was not found' });
 
-  try {
-    await sendClientLoginAccess({
-      recipient: client.email,
-      clientName: client.name,
-      therapistName: req.therapist.name,
-      password: temporaryPassword,
-      loginUrl: `${process.env.CLIENT_URL || 'http://localhost:5174'}/login`
-    });
-  } catch (error) {
-    await Client.findByIdAndDelete(client._id);
-    throw error;
-  }
+  client.therapist_id = req.therapist._id;
+  client.approval_status = 'approved';
+  await client.save();
+  await markInAppApprovalNotification(client, req.therapist.name);
 
   lead.therapist_id = req.therapist._id;
   lead.status = 'converted';
   lead.converted_client_id = client._id;
   await lead.save();
+
+  try {
+    await sendClientApprovalNotification({
+      recipient: client.email,
+      clientName: client.name,
+      therapistName: req.therapist.name,
+      loginUrl: `${process.env.CLIENT_URL || 'http://localhost:5174'}/login`
+    });
+  } catch (error) {
+    console.error(`[email] approval notification failed for ${client.email}: ${error.message}`);
+  }
 
   return res.status(200).json({ client, lead });
 }

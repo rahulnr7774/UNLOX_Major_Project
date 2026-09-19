@@ -11,16 +11,18 @@ function escapeHtml(value = '') {
 }
 
 async function sendEmail({ to, subject, text, html, attachments = [] }) {
-	if (!process.env.EMAIL_USER || !process.env.EMAIL_PASSWORD) {
-		console.error('[email] missing EMAIL_USER or EMAIL_PASSWORD');
-		throw new Error('EMAIL_USER and EMAIL_PASSWORD must be configured');
+	const hasResend = process.env.RESEND_API_KEY || process.env.RESEND_REST_API_KEY;
+	const hasSmtp = process.env.EMAIL_USER && process.env.EMAIL_PASSWORD;
+	if (!hasResend && !hasSmtp) {
+		console.error('[email] missing RESEND_API_KEY or SMTP credentials');
+		throw new Error('RESEND_API_KEY or SMTP credentials must be configured');
 	}
 
 	console.log(`[email] sending to ${to}: ${subject}`);
 
 	try {
 		const result = await emailTransporter.sendMail({
-			from: `Unfazed <${process.env.EMAIL_USER}>`,
+			from: process.env.RESEND_FROM_EMAIL || (process.env.EMAIL_USER ? `Unfazed <${process.env.EMAIL_USER}>` : 'Unfazed <onboarding@resend.dev>'),
 			to,
 			subject,
 			text,
@@ -65,6 +67,40 @@ async function sendClientLoginAccess({ recipient, clientName, therapistName, log
 					<hr style="border: none; border-top: 1px solid #ddd; margin: 20px 0;">
 					<p style="color: #999; font-size: 12px; text-align: center;">If you didn't request this access, please contact us immediately.</p>
 					<p style="color: #999; font-size: 12px; text-align: center;">© Unfazed 2026. All rights reserved.</p>
+				</div>
+			</div>
+		`
+	});
+}
+
+async function sendClientApprovalNotification({ recipient, clientName, therapistName, loginUrl }) {
+	console.log(`[email] preparing client approval email for ${recipient}`);
+	const safeClientName = escapeHtml(clientName || 'there');
+	const safeTherapistName = escapeHtml(therapistName || 'your therapist');
+	const safeRecipient = escapeHtml(recipient);
+	const safeLoginUrl = escapeHtml(loginUrl);
+
+	return sendEmail({
+		to: recipient,
+		subject: 'Your Unfazed client access has been approved',
+		text: `Hi ${clientName || 'there'},\n\n${therapistName || 'Your therapist'} has approved your request to access the Unfazed client portal.\n\nSign in with your registered credentials:\nEmail: ${recipient}\n\nOpen the portal: ${loginUrl}`,
+		html: `
+			<div style="font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; max-width: 600px; margin: 0 auto; color: #333;">
+				<div style="background: #1f6f5b; padding: 30px 20px; border-radius: 8px 8px 0 0; text-align: center;">
+					<h1 style="color: white; margin: 0; font-size: 28px;">Access approved</h1>
+					<p style="color: rgba(255,255,255,0.9); margin: 10px 0 0 0;">Your Unfazed client portal is ready.</p>
+				</div>
+				<div style="background-color: #f8f9fa; padding: 30px 20px; border-radius: 0 0 8px 8px;">
+					<p style="color: #555; font-size: 16px; line-height: 1.6;">Hi ${safeClientName},</p>
+					<p style="color: #555; font-size: 16px; line-height: 1.6;">${safeTherapistName} approved your request to access the Unfazed client portal.</p>
+					<div style="background-color: white; border-left: 4px solid #1f6f5b; padding: 15px; margin: 20px 0; border-radius: 4px;">
+						<p style="color: #666; font-size: 14px; margin: 8px 0;"><strong>Email:</strong> ${safeRecipient}</p>
+						<p style="color: #666; font-size: 14px; margin: 8px 0;">Use the password you created when signing up.</p>
+					</div>
+					<div style="text-align: center; margin: 30px 0;">
+						<a href="${safeLoginUrl}" style="background-color: #1f6f5b; color: white; padding: 14px 40px; text-decoration: none; border-radius: 5px; font-size: 16px; font-weight: bold; display: inline-block;">Sign in to your portal</a>
+					</div>
+					<p style="color: #999; font-size: 12px; text-align: center;">If you did not request this access, please contact your therapist.</p>
 				</div>
 			</div>
 		`
@@ -187,4 +223,4 @@ async function sendInvoice({ recipient, invoiceData }) {
 	});
 }
 
-module.exports = { sendEmail, sendClientLoginAccess, sendInvoice };
+module.exports = { sendEmail, sendClientLoginAccess, sendClientApprovalNotification, sendInvoice };

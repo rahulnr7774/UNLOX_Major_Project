@@ -19,6 +19,19 @@ import specializationOptions from '../../data/specializations.json'
 
 const requiredFields = ['name', 'bio', 'specializations', 'languages']
 
+const languageOptions = [
+	'English',
+	'Hindi',
+	'Malayalam',
+	'Tamil',
+	'Telugu',
+	'Kannada',
+	'Bengali',
+	'Marathi',
+	'Urdu',
+	'Other',
+]
+
 function isComplete(profile) {
 	return requiredFields.every((field) => {
 		const value = profile[field]
@@ -371,6 +384,13 @@ export default function TherapistProfile() {
 									values={form.specializations}
 									value={specialization}
 									setValue={setSpecialization}
+									onSelect={(selected) =>
+										addValue(
+											'specializations',
+											selected,
+											setSpecialization
+										)
+									}
 									onAdd={() =>
 										addValue(
 											'specializations',
@@ -422,6 +442,14 @@ export default function TherapistProfile() {
 											className="text-violet-500"
 										/>
 									}
+																	options={languageOptions}
+																	onSelect={(selected) =>
+																		addValue(
+																			'languages',
+																			selected,
+																			setLanguage
+																		)
+																	}
 								/>
 							</div>
 
@@ -582,13 +610,14 @@ function TagField({
 	values,
 	value,
 	setValue,
+	onSelect,
 	onAdd,
 	onRemove,
 	placeholder,
 	icon,
 	options,
 }) {
-	const isSpecialization = label === 'Specializations'
+	const hasOptions = options?.length > 0
 
 	return (
 		<div className="group">
@@ -605,7 +634,7 @@ function TagField({
 			{/* Input row */}
 			<div className="flex gap-2">
 
-				{isSpecialization ? (
+				{hasOptions ? (
 					<>
 						<select
 							value={
@@ -613,9 +642,14 @@ function TagField({
 									? 'Other'
 									: value
 							}
-							onChange={(event) =>
-								setValue(event.target.value)
-							}
+							onChange={(event) => {
+								const selected = event.target.value
+								setValue(selected)
+
+								if (selected && selected !== 'Other') {
+									onSelect?.(selected)
+								}
+							}}
 							className="h-12 min-w-0 flex-1 cursor-pointer rounded-xl border border-slate-200 bg-[#F8FAFC] px-4 text-sm text-[#1E293B] outline-none transition-all duration-300 hover:border-violet-200 hover:bg-violet-50/20 focus:border-violet-500 focus:bg-white focus:ring-4 focus:ring-violet-100"
 						>
 							<option value="">

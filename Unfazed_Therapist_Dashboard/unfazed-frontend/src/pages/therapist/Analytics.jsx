@@ -1,9 +1,12 @@
 import { Activity, IndianRupee, UsersRound, TrendingUp, Calendar, Clock } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import {
-  Area,
-  AreaChart,
+  Bar,
+  BarChart,
   CartesianGrid,
+  ComposedChart,
+  Legend,
+  Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
@@ -42,12 +45,13 @@ export default function Analytics() {
     error: '',
   })
   const [mounted, setMounted] = useState(false)
+  const [period, setPeriod] = useState('month')
 
   useEffect(() => {
     const timer = window.setTimeout(() => setMounted(true), 50)
 
     axiosInstance
-      .get('/analytics')
+      .get('/analytics', { params: { period } })
       .then(({ data: response }) => setData(response))
       .catch((error) =>
         setState({
@@ -68,7 +72,7 @@ export default function Analytics() {
       )
 
     return () => window.clearTimeout(timer)
-  }, [])
+  }, [period])
 
   if (state.loading) {
     return (
@@ -111,7 +115,8 @@ export default function Analytics() {
     )
   }
 
-  const revenueTrend = data.revenueTrend || []
+  const timeline = data.timeline || []
+  const periodLabels = { week: 'Weekly', month: 'Monthly', year: 'Yearly' }
 
   return (
     <section
@@ -182,167 +187,50 @@ export default function Analytics() {
       </section>
 
       {/* Main analytics */}
-      <section className="grid gap-6 xl:grid-cols-[1.65fr_.75fr]">
-        {/* Revenue Chart */}
-        <section className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-sm transition-shadow duration-300 hover:shadow-md sm:p-8">
-          <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-start">
-            <div>
-              <div className="flex items-center gap-2">
-                <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-violet-50 text-violet-500">
-                  <TrendingUp size={17} />
-                </div>
-
-                <p className="text-sm font-bold uppercase tracking-[.14em] text-[#64748B]">
-                  Revenue trend
-                </p>
-              </div>
-
-              <h2 className="mt-4 font-display text-2xl font-semibold text-[#1E293B]">
-                Monthly net revenue
-              </h2>
-
-              <p className="mt-1 text-sm text-[#64748B]">
-                A simple view of how your practice revenue is moving.
-              </p>
-            </div>
-
-            {revenueTrend.length > 0 && (
-              <div className="inline-flex w-fit items-center gap-2 rounded-full bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-600">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
-                Revenue tracked
-              </div>
-            )}
+      <section className="space-y-6">
+        <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-center">
+          <div>
+            <p className="text-sm font-bold uppercase tracking-[.14em] text-[#64748B]">Practice performance</p>
+            <h2 className="mt-2 font-display text-2xl font-semibold text-[#1E293B]">{periodLabels[period]} activity</h2>
           </div>
-
-          <div className="mt-8 h-72 w-full">
-            {revenueTrend.length ? (
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart
-                  data={revenueTrend}
-                  margin={{
-                    top: 10,
-                    right: 5,
-                    left: -15,
-                    bottom: 0,
-                  }}
-                >
-                  <defs>
-                    <linearGradient
-                      id="revenueFill"
-                      x1="0"
-                      y1="0"
-                      x2="0"
-                      y2="1"
-                    >
-                      <stop
-                        offset="0%"
-                        stopColor="#8B5CF6"
-                        stopOpacity={0.28}
-                      />
-                      <stop
-                        offset="65%"
-                        stopColor="#8B5CF6"
-                        stopOpacity={0.08}
-                      />
-                      <stop
-                        offset="100%"
-                        stopColor="#8B5CF6"
-                        stopOpacity={0}
-                      />
-                    </linearGradient>
-                  </defs>
-
-                  <CartesianGrid
-                    stroke="#E2E8F0"
-                    strokeOpacity={0.7}
-                    vertical={false}
-                  />
-
-                  <XAxis
-                    dataKey="_id"
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{
-                      fontSize: 11,
-                      fill: '#64748B',
-                    }}
-                    dy={10}
-                  />
-
-                  <YAxis
-                    axisLine={false}
-                    tickLine={false}
-                    tick={{
-                      fontSize: 11,
-                      fill: '#64748B',
-                    }}
-                    tickFormatter={(value) =>
-                      value >= 1000
-                        ? `₹${Math.round(value / 1000)}k`
-                        : `₹${value}`
-                    }
-                  />
-
-                  <Tooltip
-                    cursor={{
-                      stroke: '#8B5CF6',
-                      strokeWidth: 1,
-                      strokeDasharray: '4 4',
-                    }}
-                    formatter={(value) => [
-                      `INR ${Number(value).toLocaleString('en-IN')}`,
-                      'Revenue',
-                    ]}
-                    contentStyle={{
-                      backgroundColor: '#FFFFFF',
-                      border: '1px solid #E2E8F0',
-                      borderRadius: '14px',
-                      boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)',
-                      padding: '10px 14px',
-                    }}
-                    labelStyle={{
-                      color: '#1E293B',
-                      fontWeight: 600,
-                      marginBottom: 4,
-                    }}
-                  />
-
-                  <Area
-                    type="monotone"
-                    dataKey="revenue"
-                    stroke="#7C3AED"
-                    fill="url(#revenueFill)"
-                    strokeWidth={3}
-                    dot={false}
-                    activeDot={{
-                      r: 5,
-                      fill: '#7C3AED',
-                      stroke: '#FFFFFF',
-                      strokeWidth: 3,
-                    }}
-                    animationDuration={900}
-                    animationEasing="ease-out"
-                  />
-                </AreaChart>
-              </ResponsiveContainer>
-            ) : (
-              <div className="flex h-full flex-col items-center justify-center rounded-2xl bg-[#F8FAFC] px-5 text-center">
-                <div className="flex h-12 w-12 items-center justify-center rounded-2xl bg-violet-50 text-violet-500">
-                  <IndianRupee size={20} />
-                </div>
-
-                <p className="mt-4 text-sm font-semibold text-[#1E293B]">
-                  No revenue data yet
-                </p>
-
-                <p className="mt-1 max-w-sm text-xs leading-5 text-[#64748B]">
-                  Revenue information will appear here after successful
-                  payments.
-                </p>
-              </div>
-            )}
+          <div className="inline-flex rounded-xl bg-slate-100 p-1">
+            {Object.entries(periodLabels).map(([key, label]) => (
+              <button key={key} type="button" onClick={() => setPeriod(key)} className={`rounded-lg px-4 py-2 text-sm font-bold transition ${period === key ? 'bg-white text-violet-600 shadow-sm' : 'text-[#64748B] hover:text-[#1E293B]'}`}>
+                {label}
+              </button>
+            ))}
           </div>
-        </section>
+        </div>
+
+        <div className="grid gap-6 xl:grid-cols-[1.4fr_1fr]">
+          <ChartPanel title="Session health" subtitle="Booked, completed, and client activity across the selected period." icon={Calendar}>
+            {timeline.length ? <ResponsiveContainer width="100%" height="100%"><ComposedChart data={timeline} margin={{ top: 10, right: 8, left: -18, bottom: 0 }}>
+              <CartesianGrid stroke="#E2E8F0" strokeOpacity={0.7} vertical={false} />
+              <XAxis dataKey="_id" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} dy={10} />
+              <YAxis allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
+              <Tooltip contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px', boxShadow: '0 10px 30px rgba(15, 23, 42, 0.08)' }} />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+              <Bar dataKey="bookedSessions" name="Booked" fill="#A78BFA" radius={[5, 5, 0, 0]} />
+              <Line type="monotone" dataKey="successfulSessions" name="Successful" stroke="#10B981" strokeWidth={3} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="clientsVisited" name="Clients visited" stroke="#2563EB" strokeWidth={3} dot={{ r: 3 }} />
+              <Line type="monotone" dataKey="noShows" name="No-shows" stroke="#F59E0B" strokeWidth={2} dot={{ r: 2 }} />
+              <Line type="monotone" dataKey="cancelledSessions" name="Cancelled" stroke="#EF4444" strokeWidth={2} dot={{ r: 2 }} />
+            </ComposedChart></ResponsiveContainer> : <EmptyChart message="No session activity for this period." />}
+          </ChartPanel>
+
+          <ChartPanel title="Revenue & payments" subtitle="Net revenue and successful payment volume." icon={IndianRupee}>
+            {timeline.length ? <ResponsiveContainer width="100%" height="100%"><ComposedChart data={timeline} margin={{ top: 10, right: 8, left: -8, bottom: 0 }}>
+              <CartesianGrid stroke="#E2E8F0" strokeOpacity={0.7} vertical={false} />
+              <XAxis dataKey="_id" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} dy={10} />
+              <YAxis yAxisId="revenue" axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} tickFormatter={(value) => value >= 1000 ? `₹${Math.round(value / 1000)}k` : `₹${value}`} />
+              <YAxis yAxisId="payments" orientation="right" allowDecimals={false} axisLine={false} tickLine={false} tick={{ fontSize: 11, fill: '#64748B' }} />
+              <Tooltip formatter={(value, name) => [name === 'Revenue' ? `INR ${Number(value).toLocaleString('en-IN')}` : value, name]} contentStyle={{ backgroundColor: '#FFFFFF', border: '1px solid #E2E8F0', borderRadius: '14px' }} />
+              <Legend iconType="circle" wrapperStyle={{ fontSize: 12, paddingTop: 12 }} />
+              <Bar yAxisId="revenue" dataKey="revenue" name="Revenue" fill="#7C3AED" radius={[5, 5, 0, 0]} />
+              <Line yAxisId="payments" type="monotone" dataKey="payments" name="Payments" stroke="#10B981" strokeWidth={3} dot={{ r: 3 }} />
+            </ComposedChart></ResponsiveContainer> : <EmptyChart message="No payment activity for this period." />}
+          </ChartPanel>
+        </div>
 
         {/* Practice Snapshot */}
         <section className="relative overflow-hidden rounded-[30px] border border-violet-200 bg-gradient-to-br from-violet-50 to-white p-6 sm:p-8">
@@ -443,6 +331,27 @@ export default function Analytics() {
       )}
     </section>
   )
+}
+
+function ChartPanel({ title, subtitle, icon: Icon, children }) {
+  return (
+    <section className="rounded-[30px] border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
+      <div className="flex items-start gap-3">
+        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-violet-50 text-violet-500">
+          <Icon size={18} />
+        </div>
+        <div>
+          <h3 className="font-display text-2xl font-semibold text-[#1E293B]">{title}</h3>
+          <p className="mt-1 text-sm leading-6 text-[#64748B]">{subtitle}</p>
+        </div>
+      </div>
+      <div className="mt-8 h-80 w-full">{children}</div>
+    </section>
+  )
+}
+
+function EmptyChart({ message }) {
+  return <div className="flex h-full items-center justify-center rounded-2xl bg-[#F8FAFC] px-5 text-center text-sm text-[#64748B]">{message}</div>
 }
 
 function StatCard({

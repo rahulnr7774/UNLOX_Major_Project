@@ -204,7 +204,17 @@ export default function BookingPage() {
     return () => { cancelled = true; window.clearInterval(refreshTimer) }
   }, [therapist, date, duration, clientTimeZone])
 
-  const filteredTherapists = therapists.filter((item) => !specialization.trim() || item.specializations?.some((value) => value.toLowerCase().includes(specialization.trim().toLowerCase())))
+  const searchTerm = specialization.trim().toLowerCase()
+  const filteredTherapists = therapists
+    .filter((item) => {
+      if (!searchTerm) return true
+      return [
+        item.name,
+        ...(item.specializations || []),
+        ...(item.languages || []),
+      ].some((value) => String(value || '').toLowerCase().startsWith(searchTerm))
+    })
+    .sort((left, right) => String(left.name || '').localeCompare(String(right.name || '')))
 
   async function verifyPayment(orderData, result) {
     await axiosInstance.post('/client-booking/verify', {
@@ -341,7 +351,7 @@ export default function BookingPage() {
               <input
                 value={specialization}
                 onChange={(event) => setSpecialization(event.target.value)}
-                placeholder="Filter by specialization"
+                placeholder="Search therapists or specializations"
                 className="h-11 w-full rounded-xl border border-[#E2E8F0] bg-[#FAFAF9] pl-11 pr-4 text-sm text-[#1E293B] outline-none transition-colors focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
               />
             </label>

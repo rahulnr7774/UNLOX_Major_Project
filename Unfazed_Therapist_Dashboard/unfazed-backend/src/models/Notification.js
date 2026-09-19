@@ -4,7 +4,7 @@ const notificationSchema = new mongoose.Schema(
   {
     event: {
       type: String,
-      enum: ['booking_confirmed', 'session_reminder_24h', 'post_session_follow_up', 'note_shared', 'system'],
+      enum: ['booking_confirmed', 'session_reminder_24h', 'post_session_follow_up', 'waitlist_slot_available', 'waitlist_cancelled', 'note_shared', 'system'],
       required: true
     },
     recipient_id: {
@@ -32,6 +32,7 @@ const notificationSchema = new mongoose.Schema(
     dedupe_key: { type: String, required: true, unique: true },
     metadata: { type: mongoose.Schema.Types.Mixed, default: {} },
     sent_at: Date,
+    read_at: { type: Date, default: null },
     error: String
   },
   { timestamps: true }

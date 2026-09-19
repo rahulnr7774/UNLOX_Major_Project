@@ -110,7 +110,7 @@ const availabilitySchema = new mongoose.Schema(
         },
         status: {
           type: String,
-          enum: ["waiting", "notified"],
+          enum: ["waiting", "notified", "cancelled"],
           default: "waiting"
         },
         notified_at: Date,

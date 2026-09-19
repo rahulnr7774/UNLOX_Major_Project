@@ -5,7 +5,6 @@ const clientSchema = new mongoose.Schema(
     therapist_id: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Therapist",
-      required: true
     },
 
     name: {
@@ -23,6 +22,17 @@ const clientSchema = new mongoose.Schema(
     password_hash: {
       type: String,
       select: false
+    },
+
+    must_change_password: {
+      type: Boolean,
+      default: false
+    },
+
+    approval_status: {
+      type: String,
+      enum: ["pending", "approved"],
+      default: "approved"
     },
 
     phone: {

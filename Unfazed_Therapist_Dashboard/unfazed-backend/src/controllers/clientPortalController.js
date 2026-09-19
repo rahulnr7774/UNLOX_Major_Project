@@ -1,4 +1,5 @@
 const ClientPackage = require('../models/ClientPackage');
+const bcrypt = require('bcryptjs');
 const Client = require('../models/Client');
 const Session = require('../models/Session');
 const SessionNote = require('../models/SessionNote');
@@ -7,6 +8,7 @@ const Payment = require('../models/Payment');
 const fs = require('fs');
 const pdfGenerator = require('../utils/pdfGenerator');
 const { buildInvoiceData } = require('../services/invoiceService');
+const { isValidEmail, isValidPhone, isValidPassword } = require('../utils/validation');
 
 async function getPortal(req, res) {
   const now = new Date();
@@ -45,10 +47,32 @@ async function getPortal(req, res) {
   });
 }
 
+async function getApprovalStatus(req, res) {
+  return res.status(200).json({ client: req.client });
+}
+
 async function updateProfile(req, res) {
   const allowedFields = ['name', 'email', 'phone', 'date_of_birth', 'gender', 'presenting_concern', 'history'];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowedFields.includes(key)));
-  const client = await Client.findByIdAndUpdate(req.client._id, updates, { new: true, runValidators: true }).select('-password_hash');
+  if (updates.email && !isValidEmail(updates.email)) return res.status(400).json({ message: 'Please enter a valid email address' });
+  if (updates.phone && !isValidPhone(updates.phone)) return res.status(400).json({ message: 'Phone number must contain exactly 10 digits' });
+  const clientRecord = await Client.findById(req.client._id).select('+password_hash');
+  if (!clientRecord) return res.status(404).json({ message: 'Client account not found' });
+
+  if (clientRecord.must_change_password) {
+    const { current_password: currentPassword, new_password: newPassword, confirm_password: confirmPassword } = req.body;
+    if (!currentPassword || !newPassword || !confirmPassword) return res.status(400).json({ message: 'Enter your temporary password and choose a new password.' });
+    if (!isValidPassword(newPassword)) return res.status(400).json({ message: 'Password must be at least 8 characters and include uppercase, lowercase, number and special character.' });
+    if (newPassword !== confirmPassword) return res.status(400).json({ message: 'Your new passwords do not match.' });
+    if (!await bcrypt.compare(currentPassword, clientRecord.password_hash)) return res.status(400).json({ message: 'The temporary password is incorrect.' });
+    clientRecord.password_hash = await bcrypt.hash(newPassword, 12);
+    clientRecord.must_change_password = false;
+  }
+
+  Object.assign(clientRecord, updates);
+  await clientRecord.save();
+  const client = clientRecord.toObject();
+  delete client.password_hash;
   if (!client) return res.status(404).json({ message: 'Client account not found' });
   return res.status(200).json({ client });
 }
@@ -84,4 +108,4 @@ async function downloadReceipt(req, res) {
   return res.send(pdf);
 }
 
-module.exports = { getPortal, updateProfile, downloadReceipt };
+module.exports = { getPortal, getApprovalStatus, updateProfile, downloadReceipt };

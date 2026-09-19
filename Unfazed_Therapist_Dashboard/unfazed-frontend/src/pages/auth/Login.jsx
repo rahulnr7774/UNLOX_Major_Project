@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
-import { ArrowRight, HeartHandshake, LockKeyhole, Mail } from 'lucide-react'
+import { ArrowRight, Eye, EyeOff, HeartHandshake, LockKeyhole, Mail } from 'lucide-react'
 import { Link, useNavigate } from 'react-router-dom'
 import axiosInstance from '../../api/axiosInstance'
 import { useAuth } from '../../context/AuthContext'
 import GoogleAuthButton from './GoogleAuthButton'
+import { getPostLoginPath } from '../../utils/profileCompletion'
 
 const headlines = [
   'Care works better when your practice does too.',
@@ -12,14 +13,26 @@ const headlines = [
   'Keep every session grounded and human.',
 ]
 
+const testCredentials = {
+  therapist: { email: 'testT1@gmail.com', password: 'testpass' },
+  client: { email: 'rooonnnie.r@gmail.com', password: 'testpass' },
+}
+
 export default function Login() {
   const [role, setRole] = useState('therapist')
   const [headlineIndex, setHeadlineIndex] = useState(0)
-  const [form, setForm] = useState({ email: 'testT1@gmail.com', password: 'testpass' })
+  const [form, setForm] = useState(testCredentials.therapist)
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
+  const [showPassword, setShowPassword] = useState(false)
   const { login } = useAuth()
   const navigate = useNavigate()
+
+  function switchRole(nextRole) {
+    setRole(nextRole)
+    setForm({ ...testCredentials[nextRole] })
+    setError('')
+  }
 
   useEffect(() => {
     const timer = window.setInterval(() => {
@@ -38,7 +51,7 @@ export default function Login() {
       localStorage.setItem('unfazed_token', data.token)
       const account = data.client ? { ...data.client, role: 'client' } : { ...data.therapist, role: 'therapist' }
       login(account)
-      navigate(account.role === 'client' ? '/client-portal' : '/dashboard', { replace: true })
+      navigate(getPostLoginPath(account), { replace: true })
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to sign in. Check your details and try again.')
     } finally {
@@ -50,11 +63,11 @@ export default function Login() {
     setLoading(true)
     setError('')
     try {
-      const { data } = await axiosInstance.post('/auth/google', { credential: credentialResponse.credential })
+      const { data } = await axiosInstance.post('/auth/google', { credential: credentialResponse.credential, role })
       localStorage.setItem('unfazed_token', data.token)
       const account = data.client ? { ...data.client, role: 'client' } : { ...data.therapist, role: 'therapist' }
       login(account)
-      navigate(account.role === 'client' ? '/client-portal' : '/dashboard', { replace: true })
+      navigate(getPostLoginPath(account), { replace: true })
     } catch (requestError) {
       setError(requestError.response?.data?.message || 'Unable to sign in with Google.')
     } finally {
@@ -65,7 +78,7 @@ export default function Login() {
   return (
     <AuthLayout
       role={role}
-      setRole={setRole}
+      setRole={switchRole}
       headline={headlines[headlineIndex]}
       headlineIndex={headlineIndex}
       title="Welcome back"
@@ -73,7 +86,7 @@ export default function Login() {
     >
       <form onSubmit={submit} className="space-y-4">
         <Field icon={Mail} label="Email address" type="email" value={form.email} onChange={(value) => setForm({ ...form, email: value })} />
-        <Field icon={LockKeyhole} label="Password" type="password" value={form.password} onChange={(value) => setForm({ ...form, password: value })} />
+        <Field icon={LockKeyhole} label="Password" type={showPassword ? 'text' : 'password'} value={form.password} onChange={(value) => setForm({ ...form, password: value })} showPassword={showPassword} onTogglePassword={() => setShowPassword((visible) => !visible)} />
         {error && <p className="rounded-xl bg-[#fae2d9] px-4 py-3 text-sm font-medium text-[#9a4932]">{error}</p>}
         <button disabled={loading} className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-ink text-sm font-bold text-white hover:bg-moss disabled:opacity-60">
           {loading ? 'Signing in...' : 'Sign in'} <ArrowRight size={17} />
@@ -86,8 +99,8 @@ export default function Login() {
   )
 }
 
-function Field({ icon: Icon, label, type, value, onChange }) {
-  return <label className="block"><span className="mb-2 block text-sm font-semibold">{label}</span><span className="relative block"><Icon size={17} className="absolute left-4 top-3.5 text-ink/35" /><input required type={type} value={value} onChange={(event) => onChange(event.target.value)} className="h-12 w-full rounded-xl border border-ink/10 bg-cream pl-11 pr-4 text-sm outline-none focus:border-moss" /></span></label>
+function Field({ icon: Icon, label, type, value, onChange, showPassword, onTogglePassword }) {
+  return <label className="block"><span className="mb-2 block text-sm font-semibold">{label}</span><span className="relative block"><Icon size={17} className="absolute left-4 top-3.5 text-ink/35" /><input required type={type} value={value} onChange={(event) => onChange(event.target.value)} className="h-12 w-full rounded-xl border border-ink/10 bg-cream pl-11 pr-12 text-sm outline-none focus:border-moss" />{onTogglePassword && <button type="button" onClick={onTogglePassword} aria-label={showPassword ? 'Hide password' : 'Show password'} className="absolute right-3 top-3 rounded-md p-1 text-ink/40 hover:text-moss">{showPassword ? <EyeOff size={18} /> : <Eye size={18} />}</button>}</span></label>
 }
 
 function AuthLayout({ role, setRole, headline, headlineIndex, title, subtitle, children }) {

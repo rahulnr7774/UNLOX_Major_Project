@@ -6,6 +6,7 @@ const Therapist = require('../models/Therapist');
 const Client = require('../models/Client');
 const { generateUniqueSlug } = require('../utils/generateSlug');
 const { sendNotification } = require('../services/notificationService');
+const { isValidEmail, isValidPhone, isValidPassword } = require('../utils/validation');
 
 const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 
@@ -19,10 +20,17 @@ function publicTherapist(therapist) {
   return value;
 }
 
+function publicClient(client) {
+  const value = client.toObject ? client.toObject() : { ...client };
+  delete value.password_hash;
+  return value;
+}
+
 async function register(req, res) {
   const { name, email, password } = req.body;
   if (!name || !email || !password) return res.status(400).json({ message: 'Name, email and password are required' });
-  if (password.length < 8) return res.status(400).json({ message: 'Password must be at least 8 characters' });
+  if (!isValidEmail(email)) return res.status(400).json({ message: 'Please enter a valid email address' });
+  if (!isValidPassword(password)) return res.status(400).json({ message: 'Password must be at least 8 characters and include uppercase, lowercase, number and special character' });
 
   const normalizedEmail = email.trim().toLowerCase();
   if (await Therapist.exists({ email: normalizedEmail })) return res.status(409).json({ message: 'Email is already registered' });
@@ -35,6 +43,39 @@ async function register(req, res) {
   return res.status(201).json({ token: createToken(therapist._id, 'therapist'), therapist: publicTherapist(therapist) });
 }
 
+async function registerClient(req, res) {
+  const { name, email, password, phone, presenting_concern } = req.body;
+  if (!name || !email || !password) return res.status(400).json({ message: 'Name, email and password are required' });
+  if (!isValidEmail(email)) return res.status(400).json({ message: 'Please enter a valid email address' });
+  if (phone && !isValidPhone(phone)) return res.status(400).json({ message: 'Phone number must contain exactly 10 digits' });
+  if (!isValidPassword(password)) return res.status(400).json({ message: 'Password must be at least 8 characters and include uppercase, lowercase, number and special character' });
+
+  const normalizedEmail = email.trim().toLowerCase();
+  if (  await Client.exists({ email: normalizedEmail })) {
+    return res.status(409).json({ message: 'Email is already registered' });
+  }
+
+  const client = await Client.create({
+    name: name.trim(),
+    email: normalizedEmail,
+    phone,
+    presenting_concern,
+    password_hash: await bcrypt.hash(password, 12),
+    approval_status: 'pending'
+  });
+  const Lead = require('../models/Lead');
+  await Lead.create({
+    name: client.name,
+    email: client.email,
+    phone: client.phone,
+    presenting_concern: client.presenting_concern,
+    converted_client_id: client._id,
+    status: 'new'
+  });
+
+  return res.status(201).json({ token: createToken(client._id, 'client'), client: publicClient(client) });
+}
+
 async function login(req, res) {
   const normalizedEmail = req.body.email?.trim().toLowerCase();
   const therapist = await Therapist.findOne({ email: normalizedEmail }).select('+password_hash');
@@ -44,9 +85,7 @@ async function login(req, res) {
 
   const client = await Client.findOne({ email: normalizedEmail }).select('+password_hash');
   if (client?.password_hash && await bcrypt.compare(req.body.password || '', client.password_hash)) {
-    const value = client.toObject();
-    delete value.password_hash;
-    return res.status(200).json({ token: createToken(client._id, 'client'), client: value });
+    return res.status(200).json({ token: createToken(client._id, 'client'), client: publicClient(client) });
   }
 
   return res.status(401).json({ message: 'Invalid email or password' });
@@ -64,19 +103,36 @@ async function googleAuth(req, res) {
   if (!profile?.email || !profile.email_verified) return res.status(401).json({ message: 'Your Google email could not be verified' });
 
   const email = profile.email.trim().toLowerCase();
+  const requestedRole = req.body.role === 'client' ? 'client' : 'therapist';
   const existingTherapist = await Therapist.findOne({ email });
   if (existingTherapist) {
+    if (requestedRole === 'client') return res.status(409).json({ message: 'This Google account is registered as a therapist.' });
     return res.status(200).json({ token: createToken(existingTherapist._id, 'therapist'), therapist: publicTherapist(existingTherapist) });
   }
 
   const existingClient = await Client.findOne({ email }).select('+password_hash');
   if (existingClient) {
-    const client = existingClient.toObject();
-    delete client.password_hash;
-    return res.status(200).json({ token: createToken(existingClient._id, 'client'), client });
+    return res.status(200).json({ token: createToken(existingClient._id, 'client'), client: publicClient(existingClient) });
   }
 
   const name = profile.name?.trim() || profile.email.split('@')[0];
+  if (requestedRole === 'client') {
+    const client = await Client.create({
+      name,
+      email,
+      password_hash: await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12),
+      approval_status: 'pending'
+    });
+    const Lead = require('../models/Lead');
+    await Lead.create({
+      name: client.name,
+      email: client.email,
+      converted_client_id: client._id,
+      status: 'new'
+    });
+    return res.status(201).json({ token: createToken(client._id, 'client'), client: publicClient(client) });
+  }
+
   const slug = await generateUniqueSlug(name, Therapist);
   const therapist = await Therapist.create({
     name,
@@ -94,4 +150,4 @@ async function getCurrentTherapist(req, res) {
   return res.status(200).json({ therapist: req.therapist });
 }
 
-module.exports = { register, login, googleAuth, getCurrentTherapist };
+module.exports = { register, registerClient, login, googleAuth, getCurrentTherapist };

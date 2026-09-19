@@ -161,6 +161,17 @@ async function joinWaitlist(req, res) {
   return res.status(201).json({ message: 'You joined the waitlist.' });
 }
 
+async function listWaitlist(req, res) {
+  const availabilityRecords = await Availability.find({ 'waitlist.client_id': req.client._id })
+    .populate('therapist_id', 'name email')
+    .lean();
+  const waitlist = availabilityRecords.flatMap((availability) => (availability.waitlist || [])
+    .filter((entry) => String(entry.client_id) === String(req.client._id))
+    .map((entry) => ({ ...entry, therapist: availability.therapist_id }))
+  );
+  return res.status(200).json({ waitlist });
+}
+
 async function listPackages(req, res) {
   const packages = await Package.find({ therapist_id: req.client.therapist_id, active: true }).sort({ session_count: 1 });
   return res.status(200).json({ packages });
@@ -184,6 +195,7 @@ async function createOrder(req, res) {
   if (!therapist || !startsAt || !endsAt || !allowedDurations.includes(durationNumber)) return res.status(400).json({ message: 'Valid therapist, slot and duration are required' });
 
   const availability = await Availability.findOne({ therapist_id: therapist._id });
+  if (new Date(startsAt) <= new Date() || new Date(endsAt) <= new Date(startsAt)) return res.status(409).json({ message: 'Please choose a future time slot' });
   const requestedStart = new Date(startsAt).toISOString();
   const requestedEnd = new Date(endsAt).toISOString();
   const validSlot = availability && slotsForDate(availability, dateKeyInTimeZone(startsAt, availability.timezone), durationNumber).some((slot) => slot.start === requestedStart && slot.end === requestedEnd);
@@ -228,6 +240,7 @@ async function verifyPayment(req, res) {
       generateAndEmailInvoice(payment._id).catch((error) => console.error('[invoice] failed:', error.message));
       return res.status(200).json({ payment, clientPackage });
     }
+    if (payment.starts_at <= new Date() || payment.ends_at <= payment.starts_at) return res.status(409).json({ message: 'That session time has passed. Please choose another slot.' });
     const conflict = await Session.exists({ therapist_id: payment.therapist_id, status: { $in: ['scheduled', 'confirmed'] }, starts_at: { $lt: payment.ends_at }, ends_at: { $gt: payment.starts_at } });
     if (conflict) return res.status(409).json({ message: 'That slot was booked while payment was processing' });
     const session = await Session.create({ session_code: await nextSessionCode(), therapist_id: payment.therapist_id, client_id: payment.client_id, starts_at: payment.starts_at, ends_at: payment.ends_at, status: 'confirmed' });
@@ -244,6 +257,7 @@ async function verifyPayment(req, res) {
 
 async function bookWithPackage(req, res) {
   const { package_id: packageId, therapist_id: therapistId, starts_at: startsAt, ends_at: endsAt } = req.body;
+  if (new Date(startsAt) <= new Date() || new Date(endsAt) <= new Date(startsAt)) return res.status(409).json({ message: 'Please choose a future time slot' });
   const duration = Math.round((new Date(endsAt) - new Date(startsAt)) / 60000);
   const availability = await Availability.findOne({ therapist_id: therapistId });
   const validSlot = availability && slotsForDate(availability, dateKeyInTimeZone(startsAt, availability.timezone), duration).some((slot) => slot.start === new Date(startsAt).toISOString() && slot.end === new Date(endsAt).toISOString());
@@ -270,4 +284,4 @@ async function getSessionStatus(req, res) {
   return res.status(200).json({ session, started: Boolean(session.started_at) });
 }
 
-module.exports = { listTherapists, listAvailability, joinWaitlist, listPackages, createPackageOrder, createOrder, verifyPayment, bookWithPackage, getSessionStatus };
+module.exports = { listTherapists, listAvailability, joinWaitlist, listWaitlist, listPackages, createPackageOrder, createOrder, verifyPayment, bookWithPackage, getSessionStatus };

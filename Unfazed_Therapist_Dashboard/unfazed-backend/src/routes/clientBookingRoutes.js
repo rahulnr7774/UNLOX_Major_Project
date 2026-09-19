@@ -8,6 +8,7 @@ router.use(protectClient);
 router.get('/therapists', asyncHandler(controller.listTherapists));
 router.get('/therapists/:therapistId/availability', asyncHandler(controller.listAvailability));
 router.post('/waitlist', asyncHandler(controller.joinWaitlist));
+router.get('/waitlist', asyncHandler(controller.listWaitlist));
 router.get('/packages', asyncHandler(controller.listPackages));
 router.post('/packages/:packageId/orders', asyncHandler(controller.createPackageOrder));
 router.post('/packages/verify', asyncHandler(controller.verifyPayment));

@@ -3,8 +3,10 @@ const Session = require('../models/Session');
 const Payment = require('../models/Payment');
 const SessionNote = require('../models/SessionNote');
 const { sendNotification } = require('../services/notificationService');
+const { recordInAppNotification } = require('../services/notificationService');
 const { sendClientLoginAccess } = require('../services/emailServices');
 const { canAccess } = require('../services/entitlementService');
+const { isValidEmail, isValidPhone } = require('../utils/validation');
 
 function clientFilter(req) {
   const filter = { therapist_id: req.therapist._id };
@@ -31,13 +33,28 @@ async function listClients(req, res) {
 
 async function createClient(req, res) {
   if (!await canAccess(req.therapist._id, 'active_clients')) return res.status(403).json({ message: 'Your active-client limit has been reached.', featureKey: 'active_clients', upgradeRequired: true });
+  if (req.body.email && !isValidEmail(req.body.email)) return res.status(400).json({ message: 'Please enter a valid email address' });
+  if (req.body.phone && !isValidPhone(req.body.phone)) return res.status(400).json({ message: 'Phone number must contain exactly 10 digits' });
   const client = await Client.create({ ...req.body, therapist_id: req.therapist._id });
   if (client.email) {
-    await sendClientLoginAccess({
-      recipient: client.email,
-      clientName: client.name,
-      therapistName: req.therapist.name,
-      loginUrl: `${process.env.CLIENT_URL || 'http://localhost:5174'}/login`
+    try {
+      await sendClientLoginAccess({
+        recipient: client.email,
+        clientName: client.name,
+        therapistName: req.therapist.name,
+        loginUrl: `${process.env.CLIENT_URL || 'http://localhost:5174'}/login`
+      });
+    } catch (error) {
+      console.error(`[email] client access notification skipped for ${client.email}: ${error.message}`);
+    }
+    await recordInAppNotification({
+      event: 'system',
+      recipientId: client._id,
+      recipientRole: 'client',
+      subject: 'Your Unfazed client portal is ready',
+      message: `${req.therapist.name} created your client portal access. You can now sign in to continue.`,
+      metadata: { client_id: client._id },
+      dedupeKey: `client-access-created:${client._id}`
     });
   }
   return res.status(201).json({ client });
@@ -52,6 +69,8 @@ async function getClient(req, res) {
 async function updateClient(req, res) {
   const allowedFields = ['name', 'email', 'phone', 'date_of_birth', 'gender', 'presenting_concern', 'history', 'tags', 'status', 'intake', 'consent'];
   const updates = Object.fromEntries(Object.entries(req.body).filter(([key]) => allowedFields.includes(key)));
+  if (updates.email && !isValidEmail(updates.email)) return res.status(400).json({ message: 'Please enter a valid email address' });
+  if (updates.phone && !isValidPhone(updates.phone)) return res.status(400).json({ message: 'Phone number must contain exactly 10 digits' });
   const current = await Client.findOne({ _id: req.params.id, therapist_id: req.therapist._id });
   if (!current) return res.status(404).json({ message: 'Client not found' });
   if (updates.consent?.accepted !== undefined) {

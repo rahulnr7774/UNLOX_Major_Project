@@ -3,6 +3,7 @@ import {
   ArrowRight,
   CalendarDays,
   Leaf,
+  LockKeyhole,
   Mail,
   Phone,
   UserRound,
@@ -11,6 +12,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import axiosInstance from '../../api/axiosInstance'
 import { useAuth } from '../../context/AuthContext'
+import { isValidEmail, isValidPassword, isValidPhone } from '../../utils/validation'
 
 const requiredFields = [
   'name',
@@ -40,7 +42,11 @@ export default function ClientProfile() {
     gender: '',
     presenting_concern: '',
     history: '',
+    current_password: '',
+    new_password: '',
+    confirm_password: '',
   })
+  const [mustChangePassword, setMustChangePassword] = useState(false)
 
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -52,7 +58,7 @@ export default function ClientProfile() {
 
     axiosInstance
       .get('/clients/portal')
-      .then(({ data }) =>
+      .then(({ data }) => {
         setForm({
           name: data.client.name || '',
           email: data.client.email || '',
@@ -63,8 +69,12 @@ export default function ClientProfile() {
           gender: data.client.gender || '',
           presenting_concern: data.client.presenting_concern || '',
           history: data.client.history || '',
+          current_password: '',
+          new_password: '',
+          confirm_password: '',
         })
-      )
+        setMustChangePassword(Boolean(data.client.must_change_password))
+      })
       .catch((requestError) =>
         setError(
           requestError.response?.data?.message ||
@@ -88,7 +98,24 @@ export default function ClientProfile() {
   async function submit(event) {
     event.preventDefault()
 
-    if (!isComplete(form)) {
+    if (!isValidEmail(form.email)) {
+      setError('Please enter a valid email address.')
+      return
+    }
+    if (!isValidPhone(form.phone)) {
+      setError('Phone number must contain exactly 10 digits.')
+      return
+    }
+    if (mustChangePassword && !isValidPassword(form.new_password)) {
+      setError('Password must be at least 8 characters and include uppercase, lowercase, number and special character.')
+      return
+    }
+    if (mustChangePassword && form.new_password !== form.confirm_password) {
+      setError('Your new passwords do not match.')
+      return
+    }
+
+    if (!isComplete(form) || (mustChangePassword && (!form.current_password || !form.new_password || !form.confirm_password))) {
       setError(
         'Please complete every field before continuing to your portal.'
       )
@@ -128,7 +155,7 @@ export default function ClientProfile() {
     ).length
 
     return Math.round((completed / requiredFields.length) * 100)
-  }, [form])
+  }, [form, mustChangePassword])
 
   if (loading) {
     return (
@@ -339,6 +366,43 @@ export default function ClientProfile() {
                   />
                 </div>
               </div>
+
+              {mustChangePassword && (
+                <div className="mt-9 border-t border-[#E2E8F0] pt-8">
+                  <SectionHeading
+                    number="03"
+                    title="Secure your account"
+                    description="Replace the temporary password from your email"
+                  />
+
+                  <div className="mt-5 grid gap-5 sm:grid-cols-2">
+                    <Field
+                      label="Temporary password"
+                      icon={LockKeyhole}
+                      type="password"
+                      value={form.current_password}
+                      onChange={(value) => updateField('current_password', value)}
+                      placeholder="Enter the password from your email"
+                    />
+                    <Field
+                      label="New password"
+                      icon={LockKeyhole}
+                      type="password"
+                      value={form.new_password}
+                      onChange={(value) => updateField('new_password', value)}
+                      placeholder="At least 8 characters"
+                    />
+                    <Field
+                      label="Confirm new password"
+                      icon={LockKeyhole}
+                      type="password"
+                      value={form.confirm_password}
+                      onChange={(value) => updateField('confirm_password', value)}
+                      placeholder="Repeat your new password"
+                    />
+                  </div>
+                </div>
+              )}
 
               {/* Error */}
               {error && (

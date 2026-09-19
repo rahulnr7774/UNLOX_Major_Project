@@ -109,6 +109,8 @@ function Schedule() {
     return `${year}-${month}-${day}`
   }
 
+  const todayDateKey = dateKey(new Date())
+
   const selectedOverride = overrides.find(
     (override) => override.date === selectedDateKey
   )
@@ -344,6 +346,7 @@ function Schedule() {
   }, [])
 
   const selectDate = (date) => {
+    if (dateKey(date) < todayDateKey) return
     setSelectedDateKey(dateKey(date))
   }
 
@@ -686,6 +689,7 @@ function Schedule() {
                       const isActiveMonth =
                         date.getMonth() ===
                         activeMonthNumber - 1
+                      const isPastDate = dateKey(date) < todayDateKey
 
                       const slots =
                         getSlotsForDate(date)
@@ -707,6 +711,7 @@ function Schedule() {
                         <button
                           key={date.toISOString()}
                           type="button"
+                          disabled={!isActiveMonth || isPastDate}
                           onClick={() =>
                             selectDate(date)
                           }
@@ -728,7 +733,7 @@ function Schedule() {
                           onBlur={() =>
                             setHoveredDate(null)
                           }
-                          className={`group relative min-h-[78px] rounded-2xl border-2 p-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-violet-400 hover:bg-violet-50 hover:shadow-sm ${getDayOutlineClass(
+                          className={`group relative min-h-[78px] rounded-2xl border-2 p-3 text-left transition-all duration-200 ease-out hover:-translate-y-0.5 hover:border-violet-400 hover:bg-violet-50 hover:shadow-sm ${isPastDate ? 'cursor-not-allowed border-transparent bg-slate-50 text-slate-300 hover:translate-y-0 hover:border-transparent hover:bg-slate-50 hover:shadow-none' : getDayOutlineClass(
                             slots,
                             booked,
                             isActiveMonth,
