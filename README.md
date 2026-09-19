@@ -71,7 +71,6 @@ GOOGLE_CLIENT_ID=your-google-oauth-client-id
 # Optional Razorpay configuration
 RAZORPAY_KEY_ID=your-razorpay-key-id
 RAZORPAY_KEY_SECRET=your-razorpay-key-secret
-RAZORPAY_WEBHOOK_SECRET=your-razorpay-webhook-secret
 
 # SMTP email configuration (used for notifications and invoices)
 EMAIL_HOST=smtp.gmail.com
@@ -124,8 +123,6 @@ The Razorpay key ID is safe to expose in the browser; the Razorpay key secret an
 	 ```text
 	 https://<backend-domain>/payments/webhook
 	 ```
-
-5. Set the webhook signing secret as `RAZORPAY_WEBHOOK_SECRET`.
 
 Use Razorpay test keys for local development and staging.
 
@@ -227,7 +224,6 @@ CLIENT_URL
 GOOGLE_CLIENT_ID                  optional
 RAZORPAY_KEY_ID                   optional
 RAZORPAY_KEY_SECRET               optional
-RAZORPAY_WEBHOOK_SECRET           optional
 EMAIL_HOST                        optional
 EMAIL_PORT                        optional
 EMAIL_USER                        optional
@@ -289,6 +285,9 @@ Ensure `VITE_API_URL` points to the running backend and that the backend `CLIENT
 
 - Never commit `.env` files, JWT secrets, database credentials, payment secrets, or email passwords.
 - Use separate credentials for development, staging, and production.
-- Keep `RAZORPAY_KEY_SECRET`, `RAZORPAY_WEBHOOK_SECRET`, and `JWT_SECRET` on the server only.
+- Keep `RAZORPAY_KEY_SECRET` and `JWT_SECRET` on the server only.
 - Restrict MongoDB Atlas network access and database users in production.
 - Use HTTPS for deployed frontend, API, OAuth, payment, and webhook URLs.
+
+
+
